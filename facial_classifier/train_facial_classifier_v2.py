@@ -64,8 +64,9 @@ def ensure_pil_rgb(img):
 
 
 class FERDataset(Dataset):
-    def __init__(self, hf_dataset, transform=None):
-        self.ds = hf_dataset
+    def __init__(self, hf_dataset, transform=None, fraction=0.1):
+        n = int(len(hf_dataset) * fraction)
+        self.ds = hf_dataset.shuffle(seed=42).select(range(n)) # faction of ds for testing
         self.transform = transform
 
     def __len__(self):
@@ -330,7 +331,7 @@ def build_per_class_table(precision, recall, f1, support):
     )
 
 
-def main(config, train_loader, val_loader, test_loader, device):
+def fit(config, train_loader, val_loader, test_loader, device):
     run = wandb.init(
         project="POWERFUL_DISSERTATION",
         name=config["RUN_NAME"],
@@ -358,38 +359,21 @@ def main(config, train_loader, val_loader, test_loader, device):
     for epoch in range(config["EPOCHS"]):
         start_time = time.time()
 
-        train_loss, train_acc, global_step = train_one_epoch(
-            model, train_loader, criterion, optimizer, device, scaler, run, global_step
-        )
-
-        (
-            val_loss,
-            val_acc,
-            val_f1,
-            val_preds,
-            val_labels,
-            val_precision,
-            val_recall,
-            val_f1_per_class,
-            val_support,
-        ) = evaluate(model, val_loader, criterion, device, return_details=True)
+        train_loss, train_acc, global_step = train_one_epoch(model, train_loader, criterion, optimizer, device, scaler, run, global_step)
+        val_loss, val_acc, val_f1, val_preds, val_labels, val_precision, val_recall, val_f1_per_class, val_support = evaluate(model, val_loader, criterion, device, return_details=True)
 
         scheduler.step(val_f1)
-
         end_time = time.time()
-        lr_now = optimizer.param_groups[0]["lr"]
 
         print(
             f"Epoch [{epoch + 1}/{config['EPOCHS']}] | "
             f"train_loss={train_loss:.4f} train_acc={train_acc:.4f} | "
-            f"val_loss={val_loss:.4f} val_acc={val_acc:.4f} val_f1={val_f1:.4f}"
+            f"val_loss={val_loss:.4f} val_acc={val_acc:.4f} val_f1={val_f1:.4f} | "
+            f"time={end_time - start_time:.1f}s"
         )
 
         if run is not None:
             log_dict = {
-                "epoch": epoch + 1,
-                "lr": lr_now,
-                "time/epoch_sec": end_time - start_time,
                 "train/loss": train_loss,
                 "train/acc": train_acc,
                 "val/loss": val_loss,
@@ -399,11 +383,6 @@ def main(config, train_loader, val_loader, test_loader, device):
                     val_precision, val_recall, val_f1_per_class, val_support
                 ),
             }
-
-            for i, class_name in enumerate(CLASS_NAMES):
-                log_dict[f"val_per_class/precision_{class_name}"] = float(val_precision[i])
-                log_dict[f"val_per_class/recall_{class_name}"] = float(val_recall[i])
-                log_dict[f"val_per_class/f1_{class_name}"] = float(val_f1_per_class[i])
 
             wandb.log(log_dict, step=global_step)
 
@@ -425,39 +404,12 @@ def main(config, train_loader, val_loader, test_loader, device):
             )
             print("Saved best model.")
 
-            cm = confusion_matrix(
-                val_labels,
-                val_preds,
-                labels=list(range(len(CLASS_NAMES))),
-            )
-            fig_norm = plot_confusion_matrix(cm, CLASS_NAMES, normalize=True)
 
-            if run is not None:
-                wandb.log(
-                    {
-                        "best/epoch": best_epoch,
-                        "best/val_f1": best_val_f1,
-                        "val/confusion_matrix": wandb.Image(fig_norm),
-                    },
-                    step=global_step,
-                )
-
-            plt.close(fig_norm)
-
+    # EVALUATE BEST PERFORMING TRAINING
     checkpoint = torch.load(MODEL_PATH, map_location=device)
     model.load_state_dict(checkpoint["model_state_dict"])
 
-    (
-        test_loss,
-        test_acc,
-        test_f1,
-        test_preds,
-        test_labels,
-        test_precision,
-        test_recall,
-        test_f1_per_class,
-        test_support,
-    ) = evaluate(model, test_loader, criterion, device, return_details=True)
+    test_loss, test_acc, test_f1, test_preds, test_labels, test_precision, test_recall, test_f1_per_class, test_support = evaluate(model, test_loader, criterion, device, return_details=True)
 
     cm = confusion_matrix(
         test_labels,
@@ -477,28 +429,9 @@ def main(config, train_loader, val_loader, test_loader, device):
                 test_precision, test_recall, test_f1_per_class, test_support
             ),
             "test/confusion_matrix": wandb.Image(fig_norm),
-            "final/best_epoch": best_epoch,
-            "final/best_val_f1": best_val_f1,
         }
 
-        for i, class_name in enumerate(CLASS_NAMES):
-            log_dict[f"test_per_class/precision_{class_name}"] = float(test_precision[i])
-            log_dict[f"test_per_class/recall_{class_name}"] = float(test_recall[i])
-            log_dict[f"test_per_class/f1_{class_name}"] = float(test_f1_per_class[i])
-
-        wandb.log(log_dict, step=global_step)
-
-        run.summary["best_epoch"] = best_epoch
-        run.summary["best_val_f1"] = best_val_f1
-        run.summary["test_loss"] = test_loss
-        run.summary["test_acc"] = test_acc
-        run.summary["test_f1"] = test_f1
-
-        for i, class_name in enumerate(CLASS_NAMES):
-            run.summary[f"test_precision_{class_name}"] = float(test_precision[i])
-            run.summary[f"test_recall_{class_name}"] = float(test_recall[i])
-            run.summary[f"test_f1_{class_name}"] = float(test_f1_per_class[i])
-
+        wandb.log(log_dict)
         run.finish()
 
     plt.close(fig_norm)
@@ -518,7 +451,9 @@ if __name__ == "__main__":
         wandb.login(key=api_key)
 
     sweep = [
-        {"RUN_NAME": "FULL_TRAIN", "TRAINING_MODE": "full", "EPOCHS": 4, "LR": 1e-4, "WEIGHT_DECAY": 1e-4},
+        {"RUN_NAME": "FULL_TRAIN3", "TRAINING_MODE": "full", "EPOCHS": 10, "LR": 1e-4, "WEIGHT_DECAY": 1e-4},
+        {"RUN_NAME": "FULL_TRAIN4", "TRAINING_MODE": "full", "EPOCHS": 10, "LR": 1e-5, "WEIGHT_DECAY": 1e-3},
+        {"RUN_NAME": "FULL_TRAIN5", "TRAINING_MODE": "full", "EPOCHS": 10, "LR": 5e-3, "WEIGHT_DECAY": 5e-2},
     ]
 
     base = {
@@ -531,7 +466,7 @@ if __name__ == "__main__":
 
     for cfg in sweep:
         config = {**base, **cfg}
-        best_results = main(config, train_loader, val_loader, test_loader, device)
+        best_results = fit(config, train_loader, val_loader, test_loader, device)
         print(
             f"DONE. Best results:\n"
             f"loss={best_results['test_loss']:.4f},\n"

@@ -14,7 +14,7 @@ NUM_WORKERS = 0
 EPOCHS = 10
 LR = 1e-4
 WEIGHT_DECAY = 1e-4
-MODEL_PATH = "best2_mobilenetv2_fer2013.pt"
+MODEL_PATH = "models/best2_mobilenetv2_fer2013.pt"
 
 
 def ensure_pil_rgb(img):
