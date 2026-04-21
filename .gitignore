@@ -1,3 +1,7 @@
 hf_token
 .idea
 /facial_classifier/api_key.txt
+/models
+/wandb
+playground.ipynb
+/facial_classifier/template.py
