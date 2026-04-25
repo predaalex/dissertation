@@ -1,6 +1,7 @@
 import builtins
 import copy
 import argparse
+from collections import Counter
 import os
 import shutil
 import time
@@ -20,7 +21,7 @@ from PIL import Image
 from pytorch_model_summary import summary
 from sklearn.metrics import confusion_matrix, f1_score, precision_recall_fscore_support
 from torch import nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 from torchvision import transforms
 from torchvision.models import MobileNet_V2_Weights, mobilenet_v2
 
@@ -70,13 +71,30 @@ def ensure_pil_rgb(img):
 
 
 class FERDataset(Dataset):
-    def __init__(self, hf_dataset, transform=None, fraction=DEFAULT_DATASET_FRACTION):
+    def __init__(
+        self,
+        hf_dataset,
+        transform=None,
+        fraction=DEFAULT_DATASET_FRACTION,
+        min_quality_score=None,
+    ):
         self.transform = transform
+        if min_quality_score is not None:
+            hf_dataset = hf_dataset.filter(
+                lambda sample: float(sample.get("quality_score", 0.0)) >= float(min_quality_score)
+            )
         if fraction is None or fraction >= 1.0:
             self.ds = hf_dataset
         else:
             n = max(1, int(len(hf_dataset) * fraction))
             self.ds = hf_dataset.shuffle(seed=42).select(range(n))
+
+        self.labels = [int(label) for label in self.ds["emotion"]]
+        if "sample_weight" in self.ds.column_names:
+            self.sample_weights = [float(weight) for weight in self.ds["sample_weight"]]
+        else:
+            counts = Counter(self.labels)
+            self.sample_weights = [1.0 / counts[label] for label in self.labels]
 
     def __len__(self):
         return len(self.ds)
@@ -124,10 +142,26 @@ def get_dataloaders(config):
 
     train_transform, eval_transform = get_transforms()
     fraction = float(config.get("dataset_fraction", DEFAULT_DATASET_FRACTION))
+    min_quality_score = config.get("min_quality_score")
 
-    train_ds = FERDataset(dataset["train"], transform=train_transform, fraction=fraction)
-    val_ds = FERDataset(dataset["validation"], transform=eval_transform, fraction=fraction)
-    test_ds = FERDataset(dataset["test"], transform=eval_transform, fraction=fraction)
+    train_ds = FERDataset(
+        dataset["train"],
+        transform=train_transform,
+        fraction=fraction,
+        min_quality_score=min_quality_score,
+    )
+    val_ds = FERDataset(
+        dataset["validation"],
+        transform=eval_transform,
+        fraction=fraction,
+        min_quality_score=min_quality_score,
+    )
+    test_ds = FERDataset(
+        dataset["test"],
+        transform=eval_transform,
+        fraction=fraction,
+        min_quality_score=min_quality_score,
+    )
 
     common_loader_kwargs = {
         "batch_size": int(config["batch_size"]),
@@ -135,7 +169,18 @@ def get_dataloaders(config):
         "pin_memory": torch.cuda.is_available(),
     }
 
-    train_loader = DataLoader(train_ds, shuffle=True, **common_loader_kwargs)
+    imbalance_strategy = str(config.get("imbalance_strategy", "class_weighted_loss"))
+    train_loader_kwargs = dict(common_loader_kwargs)
+
+    if imbalance_strategy == "weighted_sampler":
+        sampler = WeightedRandomSampler(
+            weights=torch.DoubleTensor(train_ds.sample_weights),
+            num_samples=len(train_ds.sample_weights),
+            replacement=True,
+        )
+        train_loader = DataLoader(train_ds, sampler=sampler, shuffle=False, **train_loader_kwargs)
+    else:
+        train_loader = DataLoader(train_ds, shuffle=True, **train_loader_kwargs)
     val_loader = DataLoader(val_ds, shuffle=False, **common_loader_kwargs)
     test_loader = DataLoader(test_ds, shuffle=False, **common_loader_kwargs)
 
@@ -191,7 +236,41 @@ def build_scheduler(optimizer):
 
 
 def build_criterion(config):
-    return nn.CrossEntropyLoss(label_smoothing=float(config.get("label_smoothing", 0.0)))
+    class_weights = config.get("class_weights")
+    if class_weights is not None:
+        class_weights = torch.tensor(class_weights, dtype=torch.float32)
+    return nn.CrossEntropyLoss(
+        weight=class_weights,
+        label_smoothing=float(config.get("label_smoothing", 0.0)),
+    )
+
+
+def compute_class_weights(labels, num_classes):
+    counts = Counter(int(label) for label in labels)
+    total = sum(counts.values())
+    weights = []
+
+    for class_idx in range(num_classes):
+        count = counts.get(class_idx, 0)
+        if count == 0:
+            weights.append(0.0)
+        else:
+            weights.append(total / (num_classes * count))
+
+    return weights, counts
+
+
+def summarize_class_distribution(labels):
+    counts = Counter(int(label) for label in labels)
+    total = sum(counts.values())
+    summary = {}
+
+    for class_idx, class_name in enumerate(CLASS_NAMES):
+        count = counts.get(class_idx, 0)
+        pct = (100.0 * count / total) if total else 0.0
+        summary[class_name] = {"count": count, "pct": pct}
+
+    return summary
 
 
 def use_amp(device):
@@ -725,6 +804,8 @@ def prepare_run_config(run_config):
     config.setdefault("label_smoothing", 0.0)
     config.setdefault("grad_clip", 1.0)
     config.setdefault("dataset_fraction", DEFAULT_DATASET_FRACTION)
+    config.setdefault("imbalance_strategy", "class_weighted_loss")
+    config.setdefault("min_quality_score", None)
     config.setdefault("freeze_epochs", config["epochs"])
     config.setdefault("finetune_epochs", 5)
     config.setdefault("finetune_lr", 1e-5)
@@ -735,6 +816,12 @@ def prepare_run_config(run_config):
     strategy = config["strategy"]
     if strategy not in {"baseline", "finetune"}:
         raise ValueError("strategy must be 'baseline' or 'finetune'")
+
+    imbalance_strategy = config["imbalance_strategy"]
+    if imbalance_strategy not in {"none", "class_weighted_loss", "weighted_sampler"}:
+        raise ValueError(
+            "imbalance_strategy must be 'none', 'class_weighted_loss', or 'weighted_sampler'"
+        )
 
     if strategy == "baseline":
         config["freeze_epochs"] = config["epochs"]
@@ -756,11 +843,36 @@ def run_training(config_overrides=None):
     config = dict(wandb.config)
 
     train_loader, val_loader, test_loader = get_dataloaders(config)
+
+    class_weights = None
+    if config["imbalance_strategy"] == "class_weighted_loss":
+        class_weights, class_counts = compute_class_weights(
+            train_loader.dataset.labels,
+            num_classes=int(config["num_classes"]),
+        )
+        config["class_weights"] = class_weights
+    else:
+        class_counts = Counter(train_loader.dataset.labels)
+
+    class_distribution = summarize_class_distribution(train_loader.dataset.labels)
     model = create_model(config, device)
     example_input = torch.rand(size=(int(config["batch_size"]), 3, 224, 224), device=device)
     print(summary(model, example_input, show_input=True))
 
     criterion = build_criterion(config)
+    criterion = criterion.to(device)
+
+    print(f"Imbalance strategy: {config['imbalance_strategy']}")
+    print(f"Class counts: {dict(class_counts)}")
+    if class_weights is not None:
+        print(f"Class weights: {[round(weight, 4) for weight in class_weights]}")
+    if config.get("min_quality_score") is not None:
+        print(f"Minimum quality score: {config['min_quality_score']}")
+
+    run.summary["imbalance_strategy"] = config["imbalance_strategy"]
+    run.summary["train_class_distribution"] = class_distribution
+    if class_weights is not None:
+        run.summary["class_weights"] = class_weights
 
     if config["strategy"] == "baseline":
         best_state, global_step, checkpoint_path = fit_baseline(
@@ -815,6 +927,7 @@ def run_training(config_overrides=None):
             "summary/best_val_f1": best_state["best_val_f1"],
             "summary/best_phase": best_state["phase_name"],
             "summary/checkpoint_path": str(checkpoint_path),
+            "config/imbalance_strategy": config["imbalance_strategy"],
         },
         step=global_step,
     )
@@ -851,7 +964,9 @@ def create_baseline_sweep_config():
             "dropout": {"values": [0.2, 0.3]},
             "label_smoothing": {"values": [0.0, 0.05, 0.1]},
             "grad_clip": {"values": [0.5, 1.0]},
+            "imbalance_strategy": {"values": ["class_weighted_loss", "weighted_sampler"]},
             "dataset_fraction": {"value": DEFAULT_DATASET_FRACTION},
+            "min_quality_score": {"values": [None, 0.35, 0.5]},
             "num_workers": {"value": 0},
             "num_classes": {"value": 7},
         },
@@ -875,7 +990,9 @@ def create_finetune_sweep_config():
             "dropout": {"values": [0.2, 0.3]},
             "label_smoothing": {"values": [0.0, 0.05]},
             "grad_clip": {"values": [0.5, 1.0]},
+            "imbalance_strategy": {"values": ["class_weighted_loss", "weighted_sampler"]},
             "dataset_fraction": {"value": DEFAULT_DATASET_FRACTION},
+            "min_quality_score": {"values": [None, 0.35, 0.5]},
             "num_workers": {"value": 0},
             "num_classes": {"value": 7},
         },
@@ -890,6 +1007,7 @@ def create_manual_debug_runs():
             "epochs": 3,
             "lr": 1e-4,
             "weight_decay": 1e-4,
+            "imbalance_strategy": "class_weighted_loss",
         },
         {
             "run_name": "finetune_debug",
@@ -901,6 +1019,7 @@ def create_manual_debug_runs():
             "finetune_lr": 1e-5,
             "finetune_weight_decay": 1e-4,
             "unfreeze_from_block": 14,
+            "imbalance_strategy": "class_weighted_loss",
         },
     ]
 
@@ -949,6 +1068,18 @@ def build_arg_parser():
     parser.add_argument("--label-smoothing", type=float, default=None)
     parser.add_argument("--grad-clip", type=float, default=None)
     parser.add_argument("--dataset-fraction", type=float, default=None)
+    parser.add_argument(
+        "--imbalance-strategy",
+        choices=["none", "class_weighted_loss", "weighted_sampler"],
+        default=None,
+        help="How to address class imbalance in the training split.",
+    )
+    parser.add_argument(
+        "--min-quality-score",
+        type=float,
+        default=None,
+        help="Optional minimum quality_score filter from the enhanced FER2013 dataset.",
+    )
     parser.add_argument("--freeze-epochs", type=int, default=None, help="Head-only epochs for fine-tuning.")
     parser.add_argument("--finetune-epochs", type=int, default=None)
     parser.add_argument("--finetune-lr", type=float, default=None)
@@ -996,6 +1127,8 @@ def cli_args_to_config(args):
         "label_smoothing": args.label_smoothing,
         "grad_clip": args.grad_clip,
         "dataset_fraction": args.dataset_fraction,
+        "imbalance_strategy": args.imbalance_strategy,
+        "min_quality_score": args.min_quality_score,
         "freeze_epochs": args.freeze_epochs,
         "finetune_epochs": args.finetune_epochs,
         "finetune_lr": args.finetune_lr,
