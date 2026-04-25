@@ -13,6 +13,12 @@ class EmotionState(BaseModel):
     emotion_label: str
     confidence: float | None = None
     updated_at: datetime
+    vote_count: int | None = None
+    window_size: int | None = None
+    accepted: bool | None = None
+    raw_emotion_label: str | None = None
+    raw_confidence: float | None = None
+    confidence_threshold: float | None = None
 
 
 class EmotionPredictionResponse(BaseModel):
@@ -20,6 +26,17 @@ class EmotionPredictionResponse(BaseModel):
     emotion_index: int
     confidence: float
     probabilities: dict[str, float]
+
+
+class SessionEmotionPredictionResponse(EmotionPredictionResponse):
+    session_id: str
+    updated_at: datetime
+    vote_count: int | None = None
+    window_size: int | None = None
+    accepted: bool | None = None
+    raw_emotion_label: str | None = None
+    raw_confidence: float | None = None
+    confidence_threshold: float | None = None
 
 
 class SessionMessage(BaseModel):

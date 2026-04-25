@@ -14,6 +14,7 @@ from assistant_backend.schemas import (
     EmotionState,
     EmotionUpdateRequest,
     HealthResponse,
+    SessionEmotionPredictionResponse,
     SessionStateResponse,
     TranscriptionResponse,
 )
@@ -33,7 +34,11 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Emotion-Aware Assistant Backend", version="0.1.0")
 
     app.state.settings = settings
-    app.state.session_service = SessionService(history_limit=settings.session_history_limit)
+    app.state.session_service = SessionService(
+        history_limit=settings.session_history_limit,
+        emotion_vote_window=settings.emotion_vote_window,
+        emotion_confidence_threshold=settings.emotion_confidence_threshold,
+    )
     app.state.assistant_service = AssistantService(history_limit=settings.session_history_limit)
     app.state.llm_service = OllamaService(
         base_url=settings.ollama_base_url,
@@ -110,6 +115,43 @@ def create_app() -> FastAPI:
         except EmotionServiceError as exc:
             raise HTTPException(status_code=503, detail=str(exc))
         return EmotionPredictionResponse(**prediction)
+
+    @app.post("/sessions/{session_id}/emotion/predict", response_model=SessionEmotionPredictionResponse)
+    async def predict_and_cache_emotion(
+        session_id: str,
+        image: UploadFile = File(...),
+    ) -> SessionEmotionPredictionResponse:
+        try:
+            app.state.session_service.get_session(session_id)
+        except SessionNotFoundError:
+            raise HTTPException(status_code=404, detail="Session not found.")
+
+        image_bytes = await image.read()
+        try:
+            prediction = app.state.emotion_service.predict(image_bytes)
+        except EmotionServiceError as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+
+        emotion_state = app.state.session_service.update_emotion(
+            session_id=session_id,
+            emotion_label=prediction["emotion_label"],
+            confidence=prediction["confidence"],
+        )
+
+        return SessionEmotionPredictionResponse(
+            session_id=session_id,
+            emotion_label=emotion_state["emotion_label"],
+            emotion_index=prediction["emotion_index"],
+            confidence=emotion_state["confidence"],
+            probabilities=prediction["probabilities"],
+            updated_at=emotion_state["updated_at"],
+            vote_count=emotion_state.get("vote_count"),
+            window_size=emotion_state.get("window_size"),
+            accepted=emotion_state.get("accepted"),
+            raw_emotion_label=emotion_state.get("raw_emotion_label"),
+            raw_confidence=emotion_state.get("raw_confidence"),
+            confidence_threshold=emotion_state.get("confidence_threshold"),
+        )
 
     @app.post("/speech-to-text/transcribe", response_model=TranscriptionResponse)
     async def transcribe_audio(audio: UploadFile = File(...)) -> TranscriptionResponse:
