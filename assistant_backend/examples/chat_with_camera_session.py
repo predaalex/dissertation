@@ -1,7 +1,10 @@
 import argparse
 import json
+import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -9,6 +12,7 @@ import requests
 
 
 BASE_URL = "http://127.0.0.1:8000"
+GLOW_PATH = shutil.which("glow")
 
 
 def create_session():
@@ -24,6 +28,7 @@ def start_camera_poller(
     no_preview,
     manual_only,
     show_camera_logs,
+    disable_face_cropping,
 ):
     script_path = Path(__file__).resolve().parent / "predict_emotion_from_camera.py"
     command = [
@@ -41,13 +46,37 @@ def start_camera_poller(
         command.append("--no-preview")
     if manual_only:
         command.append("--manual-only")
+    if disable_face_cropping:
+        command.append("--disable-face-cropping")
 
     stdout = None if show_camera_logs else subprocess.DEVNULL
     stderr = None if show_camera_logs else subprocess.DEVNULL
     return subprocess.Popen(command, stdout=stdout, stderr=stderr)
 
 
-def stream_assistant_reply(session_id, prompt, use_cached_emotion=True):
+def render_markdown_with_glow(markdown_text: str) -> bool:
+    if GLOW_PATH is None:
+        return False
+
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            suffix=".md",
+            delete=False,
+        ) as temp_file:
+            temp_file.write(markdown_text)
+            temp_path = temp_file.name
+
+        subprocess.run([GLOW_PATH, temp_path], check=False)
+        return True
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+def stream_assistant_reply(session_id, prompt, use_cached_emotion=True, render_markdown=True):
     data = {
         "session_id": session_id,
         "text": prompt,
@@ -65,8 +94,12 @@ def stream_assistant_reply(session_id, prompt, use_cached_emotion=True):
         metadata = None
         done_payload = None
         current_event = None
+        streamed_chunks = []
 
-        print("\nassistant> ", end="", flush=True)
+        if render_markdown and GLOW_PATH is not None:
+            print("\nassistant> [streaming response, rendering markdown when complete...]", flush=True)
+        else:
+            print("\nassistant> ", end="", flush=True)
 
         for line in response.iter_lines(decode_unicode=True):
             if not line:
@@ -85,14 +118,27 @@ def stream_assistant_reply(session_id, prompt, use_cached_emotion=True):
                 metadata = payload
             elif current_event == "token":
                 token = payload.get("text", "")
-                print(token, end="", flush=True)
+                streamed_chunks.append(token)
+                if not render_markdown or GLOW_PATH is None:
+                    print(token, end="", flush=True)
             elif current_event == "error":
                 print(f"\n[error] {payload.get('stage')}: {payload.get('message')}")
                 return metadata, None
             elif current_event == "done":
                 done_payload = payload
 
-        print()
+        full_response = (
+            done_payload.get("response_text")
+            if done_payload is not None and done_payload.get("response_text") is not None
+            else "".join(streamed_chunks)
+        )
+
+        if render_markdown and full_response and GLOW_PATH is not None:
+            rendered = render_markdown_with_glow(full_response)
+            if not rendered:
+                print(full_response)
+        else:
+            print()
         return metadata, done_payload
 
 
@@ -117,6 +163,16 @@ def main():
         default=2.0,
         help="Seconds to wait after starting the camera poller before the first chat prompt.",
     )
+    parser.add_argument(
+        "--no-markdown-render",
+        action="store_true",
+        help="Do not render completed assistant replies with glow; print raw streamed text instead.",
+    )
+    parser.add_argument(
+        "--disable-face-cropping",
+        action="store_true",
+        help="Disable local and backend face cropping in the camera poller.",
+    )
     args = parser.parse_args()
 
     session = create_session()
@@ -134,6 +190,7 @@ def main():
         no_preview=not args.show_video_preview,
         manual_only=args.manual_only,
         show_camera_logs=args.show_camera_logs,
+        disable_face_cropping=args.disable_face_cropping,
     )
 
     print(
@@ -172,6 +229,7 @@ def main():
                 session_id=session_id,
                 prompt=user_text,
                 use_cached_emotion=True,
+                render_markdown=not args.no_markdown_render,
             )
 
             if metadata is not None:

@@ -36,9 +36,10 @@ CLASS_NAMES = [
 ]
 
 PROJECT_NAME = "POWERFUL_DISSERTATION"
-DEFAULT_DATASET_FRACTION = 0.1
+DEFAULT_DATASET_FRACTION = 0.2
 DATASET_CACHE_DIR = "datasets/fer2013-enhanced"
 MODELS_DIR = Path("models")
+SWEEP_PROGRESS = {"current": 0, "total": None}
 
 
 def print(*args, **kwargs):
@@ -831,7 +832,9 @@ def prepare_run_config(run_config):
 
 
 def run_training(config_overrides=None):
-    config = prepare_run_config(config_overrides or {})
+    config_overrides = config_overrides or {}
+    explicit_run_name = "run_name" in config_overrides
+    config = prepare_run_config(config_overrides)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     run = wandb.init(
@@ -841,6 +844,32 @@ def run_training(config_overrides=None):
         tags=[config["strategy"], "mobilenetv2", "fer2013"],
     )
     config = dict(wandb.config)
+    config = prepare_run_config(config)
+
+    if not explicit_run_name:
+        resolved_run_name = default_run_name(config)
+        run.name = resolved_run_name
+        config["run_name"] = resolved_run_name
+        wandb.config.update({"run_name": resolved_run_name}, allow_val_change=True)
+
+    print(
+        "Resolved config: "
+        f"strategy={config['strategy']} "
+        f"batch_size={config['batch_size']} "
+        f"lr={config['lr']} "
+        f"weight_decay={config['weight_decay']} "
+        f"dataset_fraction={config['dataset_fraction']} "
+        f"imbalance_strategy={config['imbalance_strategy']}"
+    )
+    if config["strategy"] == "finetune":
+        print(
+            "Fine-tune config: "
+            f"freeze_epochs={config['freeze_epochs']} "
+            f"finetune_epochs={config['finetune_epochs']} "
+            f"finetune_lr={config['finetune_lr']} "
+            f"finetune_weight_decay={config['finetune_weight_decay']} "
+            f"unfreeze_from_block={config['unfreeze_from_block']}"
+        )
 
     train_loader, val_loader, test_loader = get_dataloaders(config)
 
@@ -948,7 +977,29 @@ def run_training(config_overrides=None):
 
 
 def sweep_train():
-    run_training()
+    SWEEP_PROGRESS["current"] += 1
+    current = SWEEP_PROGRESS["current"]
+    total = SWEEP_PROGRESS["total"]
+
+    if total is not None:
+        print(f"sweep [{current}/{total}] starting")
+    else:
+        print(f"sweep run [{current}] starting")
+
+    results = run_training()
+
+    if total is not None:
+        print(
+            f"sweep [{current}/{total}] finished | "
+            f"best_val_f1={results['best_val_f1']:.4f} "
+            f"test_f1={results['test_f1']:.4f}"
+        )
+    else:
+        print(
+            f"sweep run [{current}] finished | "
+            f"best_val_f1={results['best_val_f1']:.4f} "
+            f"test_f1={results['test_f1']:.4f}"
+        )
 
 
 def create_baseline_sweep_config():
@@ -958,13 +1009,13 @@ def create_baseline_sweep_config():
         "parameters": {
             "strategy": {"value": "baseline"},
             "batch_size": {"values": [32, 64]},
-            "epochs": {"values": [8, 10, 12]},
+            "epochs": {"values": [8, 10, 12, 16, 24]},
             "lr": {"values": [1e-4, 3e-4, 5e-4]},
             "weight_decay": {"values": [1e-5, 1e-4, 1e-3]},
             "dropout": {"values": [0.2, 0.3]},
             "label_smoothing": {"values": [0.0, 0.05, 0.1]},
             "grad_clip": {"values": [0.5, 1.0]},
-            "imbalance_strategy": {"values": ["class_weighted_loss", "weighted_sampler"]},
+            "imbalance_strategy": {"values": ["none", "class_weighted_loss", "weighted_sampler"]},
             "dataset_fraction": {"value": DEFAULT_DATASET_FRACTION},
             "min_quality_score": {"values": [None, 0.35, 0.5]},
             "num_workers": {"value": 0},
@@ -1034,6 +1085,8 @@ def launch_sweep(sweep_type, count=None):
 
     sweep_id = wandb.sweep(sweep_config, project=PROJECT_NAME)
     print(f"Created {sweep_type} sweep: {sweep_id}")
+    SWEEP_PROGRESS["current"] = 0
+    SWEEP_PROGRESS["total"] = count
     wandb.agent(sweep_id, function=sweep_train, count=count)
 
 

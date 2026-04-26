@@ -26,6 +26,9 @@ class EmotionPredictionResponse(BaseModel):
     emotion_index: int
     confidence: float
     probabilities: dict[str, float]
+    face_detected: bool
+    face_crop_applied: bool
+    face_bbox: list[int] | None = None
 
 
 class SessionEmotionPredictionResponse(EmotionPredictionResponse):

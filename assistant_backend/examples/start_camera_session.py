@@ -22,6 +22,11 @@ def main():
     parser.add_argument("--manual-only", action="store_true")
     parser.add_argument("--no-preview", action="store_true")
     parser.add_argument("--save-capture-path", default=None)
+    parser.add_argument(
+        "--disable-face-cropping",
+        action="store_true",
+        help="Disable local and backend face cropping in the camera poller.",
+    )
     args = parser.parse_args()
 
     session = create_session()
@@ -48,6 +53,8 @@ def main():
         command.append("--manual-only")
     if args.no_preview:
         command.append("--no-preview")
+    if args.disable_face_cropping:
+        command.append("--disable-face-cropping")
     if args.save_capture_path:
         command.extend(["--save-capture-path", args.save_capture_path])
 

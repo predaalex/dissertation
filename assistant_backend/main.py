@@ -45,7 +45,10 @@ def create_app() -> FastAPI:
         model=settings.ollama_model,
     )
     app.state.stt_service = SpeechToTextService()
-    app.state.emotion_service = EmotionService(checkpoint_path=settings.emotion_model_path)
+    app.state.emotion_service = EmotionService(
+        checkpoint_path=settings.emotion_model_path,
+        face_cropping_enabled=settings.emotion_face_cropping_enabled,
+    )
 
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
@@ -108,10 +111,16 @@ def create_app() -> FastAPI:
         return EmotionState(**emotion)
 
     @app.post("/emotion/predict", response_model=EmotionPredictionResponse)
-    async def predict_emotion(image: UploadFile = File(...)) -> EmotionPredictionResponse:
+    async def predict_emotion(
+        image: UploadFile = File(...),
+        disable_face_cropping: bool = Form(default=False),
+    ) -> EmotionPredictionResponse:
         image_bytes = await image.read()
         try:
-            prediction = app.state.emotion_service.predict(image_bytes)
+            prediction = app.state.emotion_service.predict(
+                image_bytes,
+                disable_face_cropping=disable_face_cropping,
+            )
         except EmotionServiceError as exc:
             raise HTTPException(status_code=503, detail=str(exc))
         return EmotionPredictionResponse(**prediction)
@@ -120,6 +129,7 @@ def create_app() -> FastAPI:
     async def predict_and_cache_emotion(
         session_id: str,
         image: UploadFile = File(...),
+        disable_face_cropping: bool = Form(default=False),
     ) -> SessionEmotionPredictionResponse:
         try:
             app.state.session_service.get_session(session_id)
@@ -128,7 +138,10 @@ def create_app() -> FastAPI:
 
         image_bytes = await image.read()
         try:
-            prediction = app.state.emotion_service.predict(image_bytes)
+            prediction = app.state.emotion_service.predict(
+                image_bytes,
+                disable_face_cropping=disable_face_cropping,
+            )
         except EmotionServiceError as exc:
             raise HTTPException(status_code=503, detail=str(exc))
 
@@ -151,6 +164,9 @@ def create_app() -> FastAPI:
             raw_emotion_label=emotion_state.get("raw_emotion_label"),
             raw_confidence=emotion_state.get("raw_confidence"),
             confidence_threshold=emotion_state.get("confidence_threshold"),
+            face_detected=prediction["face_detected"],
+            face_crop_applied=prediction["face_crop_applied"],
+            face_bbox=prediction["face_bbox"],
         )
 
     @app.post("/speech-to-text/transcribe", response_model=TranscriptionResponse)

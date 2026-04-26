@@ -10,6 +10,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--session-id", required=True)
     parser.add_argument("--image-path", required=True)
+    parser.add_argument(
+        "--disable-face-cropping",
+        action="store_true",
+        help="Disable backend face detection/cropping for this request.",
+    )
     args = parser.parse_args()
 
     with open(args.image_path, "rb") as image_file:
@@ -19,6 +24,7 @@ def main():
         response = requests.post(
             f"{BASE_URL}/sessions/{args.session_id}/emotion/predict",
             files=files,
+            data={"disable_face_cropping": str(args.disable_face_cropping).lower()},
             timeout=60,
         )
 
