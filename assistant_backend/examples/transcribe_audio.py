@@ -9,7 +9,19 @@ BASE_URL = "http://127.0.0.1:8000"
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--audio-path", required=True)
+    parser.add_argument(
+        "--task",
+        choices=["transcribe", "translate"],
+        default="transcribe",
+        help="Whisper task to run. Use translate to translate speech into English.",
+    )
+    parser.add_argument(
+        "--translate",
+        action="store_true",
+        help="Shortcut for --task translate.",
+    )
     args = parser.parse_args()
+    task = "translate" if args.translate else args.task
 
     with open(args.audio_path, "rb") as audio_file:
         files = {
@@ -18,7 +30,8 @@ def main():
         response = requests.post(
             f"{BASE_URL}/speech-to-text/transcribe",
             files=files,
-            timeout=60,
+            data={"task": task},
+            timeout=300,
         )
 
     print("Status code:", response.status_code)

@@ -44,7 +44,10 @@ def create_app() -> FastAPI:
         base_url=settings.ollama_base_url,
         model=settings.ollama_model,
     )
-    app.state.stt_service = SpeechToTextService()
+    app.state.stt_service = SpeechToTextService(
+        model_size=settings.whisper_model_size,
+        language=settings.whisper_language,
+    )
     app.state.emotion_service = EmotionService(
         checkpoint_path=settings.emotion_model_path,
         face_cropping_enabled=settings.emotion_face_cropping_enabled,
@@ -170,10 +173,17 @@ def create_app() -> FastAPI:
         )
 
     @app.post("/speech-to-text/transcribe", response_model=TranscriptionResponse)
-    async def transcribe_audio(audio: UploadFile = File(...)) -> TranscriptionResponse:
+    async def transcribe_audio(
+        audio: UploadFile = File(...),
+        task: str = Form(default="transcribe"),
+    ) -> TranscriptionResponse:
         audio_bytes = await audio.read()
         try:
-            transcript = app.state.stt_service.transcribe(audio_bytes, filename=audio.filename)
+            transcript = app.state.stt_service.transcribe(
+                audio_bytes,
+                filename=audio.filename,
+                task=task,
+            )
         except STTUnavailableError as exc:
             raise HTTPException(status_code=503, detail=str(exc))
         return TranscriptionResponse(transcript=transcript, backend=app.state.stt_service.backend_name)
@@ -205,6 +215,7 @@ def create_app() -> FastAPI:
                     transcript_used = app.state.stt_service.transcribe(
                         audio_bytes,
                         filename=audio.filename,
+                        task="transcribe",
                     )
                     final_user_text = transcript_used.strip()
                 except STTUnavailableError as exc:
