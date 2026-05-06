@@ -2,6 +2,7 @@ import builtins
 import copy
 import argparse
 from collections import Counter
+import json
 import os
 import shutil
 import time
@@ -16,7 +17,7 @@ import seaborn as sns
 import torch
 import torch.multiprocessing as mp
 import wandb
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk
 from PIL import Image
 from pytorch_model_summary import summary
 from sklearn.metrics import confusion_matrix, f1_score, precision_recall_fscore_support
@@ -25,7 +26,7 @@ from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 from torchvision import transforms
 from torchvision.models import MobileNet_V2_Weights, mobilenet_v2
 
-CLASS_NAMES = [
+ORIGINAL_CLASS_NAMES = [
     "Angry",
     "Disgust",
     "Fear",
@@ -34,10 +35,14 @@ CLASS_NAMES = [
     "Surprise",
     "Neutral",
 ]
+DEFAULT_CLASS_NAMES = ORIGINAL_CLASS_NAMES
+NO_DISGUST_CLASS_NAMES = ["Angry", "Fear", "Happy", "Sad", "Surprise", "Neutral"]
 
 PROJECT_NAME = "POWERFUL_DISSERTATION"
+DEFAULT_DATASET_NAME = "abhilash88/fer2013-enhanced"
 DEFAULT_DATASET_FRACTION = 0.2
 DATASET_CACHE_DIR = "datasets/fer2013-enhanced"
+NO_DISGUST_DATASET_PATH = "datasets/fer2013-enhanced-no-disgust"
 MODELS_DIR = Path("models")
 SWEEP_PROGRESS = {"current": 0, "total": None}
 
@@ -49,6 +54,18 @@ def print(*args, **kwargs):
 
 def get_timestamp():
     return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
+def load_dataset_metadata(dataset_path):
+    if not dataset_path:
+        return {}
+
+    metadata_path = Path(dataset_path) / "metadata.json"
+    if not metadata_path.exists():
+        return {}
+
+    with open(metadata_path, "r", encoding="utf-8") as file:
+        return json.load(file)
 
 
 def ensure_pil_rgb(img):
@@ -111,6 +128,28 @@ class FERDataset(Dataset):
         return image, label
 
 
+def parse_class_names(value):
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return [name.strip() for name in value.split(",") if name.strip()]
+    return list(value)
+
+
+def get_class_names(config):
+    class_names = parse_class_names(config.get("class_names"))
+    if class_names is None:
+        class_names = DEFAULT_CLASS_NAMES[: int(config["num_classes"])]
+
+    if len(class_names) != int(config["num_classes"]):
+        raise ValueError(
+            "class_names length must match num_classes. "
+            f"Got {len(class_names)} names for {config['num_classes']} classes."
+        )
+
+    return class_names
+
+
 def get_transforms():
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
@@ -139,7 +178,14 @@ def get_transforms():
 
 
 def get_dataloaders(config):
-    dataset = load_dataset("abhilash88/fer2013-enhanced", cache_dir=DATASET_CACHE_DIR)
+    dataset_path = config.get("dataset_path")
+    dataset_name = config.get("dataset_name", DEFAULT_DATASET_NAME)
+    dataset_cache_dir = config.get("dataset_cache_dir", DATASET_CACHE_DIR)
+
+    if dataset_path:
+        dataset = load_from_disk(dataset_path)
+    else:
+        dataset = load_dataset(dataset_name, cache_dir=dataset_cache_dir)
 
     train_transform, eval_transform = get_transforms()
     fraction = float(config.get("dataset_fraction", DEFAULT_DATASET_FRACTION))
@@ -261,12 +307,12 @@ def compute_class_weights(labels, num_classes):
     return weights, counts
 
 
-def summarize_class_distribution(labels):
+def summarize_class_distribution(labels, class_names):
     counts = Counter(int(label) for label in labels)
     total = sum(counts.values())
     summary = {}
 
-    for class_idx, class_name in enumerate(CLASS_NAMES):
+    for class_idx, class_name in enumerate(class_names):
         count = counts.get(class_idx, 0)
         pct = (100.0 * count / total) if total else 0.0
         summary[class_name] = {"count": count, "pct": pct}
@@ -330,18 +376,18 @@ def str2bool(value):
     raise argparse.ArgumentTypeError(f"Invalid boolean value: {value}")
 
 
-def build_per_class_table(precision, recall, f1, support):
+def build_per_class_table(precision, recall, f1, support, class_names):
     return wandb.Table(
         columns=["class", "precision", "recall", "f1", "support"],
         data=[
             [
-                CLASS_NAMES[i],
+                class_names[i],
                 float(precision[i]),
                 float(recall[i]),
                 float(f1[i]),
                 int(support[i]),
             ]
-            for i in range(len(CLASS_NAMES))
+            for i in range(len(class_names))
         ],
     )
 
@@ -399,7 +445,7 @@ def train_one_epoch(
 
 
 @torch.no_grad()
-def evaluate(model, loader, criterion, device, return_details=False):
+def evaluate(model, loader, criterion, device, num_classes, return_details=False):
     model.eval()
     running_loss = 0.0
     correct = 0
@@ -429,7 +475,7 @@ def evaluate(model, loader, criterion, device, return_details=False):
         precision, recall, f1, support = precision_recall_fscore_support(
             all_labels,
             all_preds,
-            labels=list(range(len(CLASS_NAMES))),
+            labels=list(range(num_classes)),
             average=None,
             zero_division=0,
         )
@@ -521,6 +567,7 @@ def log_epoch_metrics(
     global_step,
     trainable_params,
     unfreeze_from_block,
+    class_names,
 ):
     wandb.log(
         {
@@ -530,7 +577,7 @@ def log_epoch_metrics(
             "val/acc": val_acc,
             "val/f1": val_f1,
             "val/per_class_metrics": build_per_class_table(
-                val_precision, val_recall, val_f1_per_class, val_support
+                val_precision, val_recall, val_f1_per_class, val_support, class_names
             ),
             "train/lr": optimizer.param_groups[0]["lr"],
             "phase/name": phase_name,
@@ -564,6 +611,8 @@ def train_phase(
     unfreeze_from_block=None,
 ):
     trainable_params = count_trainable_parameters(model)
+    class_names = get_class_names(config)
+    num_classes = int(config["num_classes"])
 
     for epoch_idx in range(num_epochs):
         start_time = time.time()
@@ -589,7 +638,14 @@ def train_phase(
             val_recall,
             val_f1_per_class,
             val_support,
-        ) = evaluate(model, val_loader, criterion, device, return_details=True)
+        ) = evaluate(
+            model,
+            val_loader,
+            criterion,
+            device,
+            num_classes=num_classes,
+            return_details=True,
+        )
 
         scheduler.step(val_f1)
         elapsed = time.time() - start_time
@@ -620,6 +676,7 @@ def train_phase(
             global_step=global_step,
             trainable_params=trainable_params,
             unfreeze_from_block=unfreeze_from_block,
+            class_names=class_names,
         )
 
         if val_f1 > best_state["best_val_f1"]:
@@ -751,7 +808,9 @@ def fit_finetune(model, train_loader, val_loader, criterion, config, device, run
     return best_state, global_step, checkpoint_path
 
 
-def evaluate_best_checkpoint(model, test_loader, criterion, device, checkpoint_path):
+def evaluate_best_checkpoint(model, test_loader, criterion, device, checkpoint_path, config):
+    class_names = get_class_names(config)
+    num_classes = int(config["num_classes"])
     checkpoint = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(checkpoint["model_state_dict"])
 
@@ -765,10 +824,17 @@ def evaluate_best_checkpoint(model, test_loader, criterion, device, checkpoint_p
         test_recall,
         test_f1_per_class,
         test_support,
-    ) = evaluate(model, test_loader, criterion, device, return_details=True)
+    ) = evaluate(
+        model,
+        test_loader,
+        criterion,
+        device,
+        num_classes=num_classes,
+        return_details=True,
+    )
 
-    cm, _cm_norm = compute_normalized_cm(test_labels, test_preds, num_classes=len(CLASS_NAMES))
-    fig_norm = plot_confusion_matrix(cm, CLASS_NAMES, normalize=True)
+    cm, _cm_norm = compute_normalized_cm(test_labels, test_preds, num_classes=num_classes)
+    fig_norm = plot_confusion_matrix(cm, class_names, normalize=True)
 
     return {
         "test_loss": test_loss,
@@ -780,6 +846,7 @@ def evaluate_best_checkpoint(model, test_loader, criterion, device, checkpoint_p
         "test_support": test_support,
         "figure": fig_norm,
         "checkpoint": checkpoint,
+        "class_names": class_names,
     }
 
 
@@ -787,6 +854,7 @@ def default_run_name(config):
     parts = [
         str(config["strategy"]),
         str(config.get("imbalance_strategy", "class_weighted_loss")),
+        f"c{int(config['num_classes'])}",
         f"bs{int(config['batch_size'])}",
         f"lr{float(config['lr']):.0e}",
         f"frac{float(config['dataset_fraction']):.2f}",
@@ -815,6 +883,7 @@ def build_run_tags(config):
         config["strategy"],
         "mobilenetv2",
         "fer2013",
+        f"{int(config['num_classes'])}_class",
         str(config.get("imbalance_strategy", "class_weighted_loss")),
     ]
 
@@ -829,7 +898,15 @@ def prepare_run_config(run_config):
     config.setdefault("strategy", "baseline")
     config.setdefault("batch_size", 64)
     config.setdefault("num_workers", 0)
-    config.setdefault("num_classes", 7)
+    config.setdefault("dataset_name", DEFAULT_DATASET_NAME)
+    config.setdefault("dataset_path", None)
+    config.setdefault("dataset_cache_dir", DATASET_CACHE_DIR)
+    dataset_metadata = load_dataset_metadata(config.get("dataset_path"))
+    config.setdefault("num_classes", dataset_metadata.get("num_classes", 7))
+    config.setdefault(
+        "class_names",
+        dataset_metadata.get("class_names", DEFAULT_CLASS_NAMES[: int(config["num_classes"])]),
+    )
     config.setdefault("epochs", 10)
     config.setdefault("lr", 1e-4)
     config.setdefault("weight_decay", 1e-4)
@@ -860,6 +937,8 @@ def prepare_run_config(run_config):
         config["freeze_epochs"] = config["epochs"]
         config["finetune_epochs"] = 0
 
+    get_class_names(config)
+
     return config
 
 
@@ -889,12 +968,16 @@ def run_training(config_overrides=None):
     print(
         "Resolved config: "
         f"strategy={config['strategy']} "
+        f"num_classes={config['num_classes']} "
         f"batch_size={config['batch_size']} "
         f"lr={config['lr']} "
         f"weight_decay={config['weight_decay']} "
         f"dataset_fraction={config['dataset_fraction']} "
         f"imbalance_strategy={config['imbalance_strategy']}"
     )
+    class_names = get_class_names(config)
+    print(f"Dataset source: {config.get('dataset_path') or config.get('dataset_name')}")
+    print(f"Classes: {class_names}")
     if config["strategy"] == "finetune":
         print(
             "Fine-tune config: "
@@ -917,7 +1000,7 @@ def run_training(config_overrides=None):
     else:
         class_counts = Counter(train_loader.dataset.labels)
 
-    class_distribution = summarize_class_distribution(train_loader.dataset.labels)
+    class_distribution = summarize_class_distribution(train_loader.dataset.labels, class_names)
     model = create_model(config, device)
     example_input = torch.rand(size=(int(config["batch_size"]), 3, 224, 224), device=device)
     print(summary(model, example_input, show_input=True))
@@ -967,6 +1050,7 @@ def run_training(config_overrides=None):
         criterion=criterion,
         device=device,
         checkpoint_path=checkpoint_path,
+        config=config,
     )
 
     print(
@@ -985,6 +1069,7 @@ def run_training(config_overrides=None):
                 test_results["test_recall"],
                 test_results["test_f1_per_class"],
                 test_results["test_support"],
+                test_results["class_names"],
             ),
             "test/confusion_matrix": wandb.Image(test_results["figure"]),
             "summary/best_val_f1": best_state["best_val_f1"],
@@ -1058,6 +1143,15 @@ def create_baseline_sweep_config():
     }
 
 
+def create_baseline_no_disgust_sweep_config():
+    sweep_config = create_baseline_sweep_config()
+    sweep_config["parameters"]["dataset_path"] = {"value": NO_DISGUST_DATASET_PATH}
+    sweep_config["parameters"]["dataset_name"] = {"value": DEFAULT_DATASET_NAME}
+    sweep_config["parameters"]["num_classes"] = {"value": 6}
+    sweep_config["parameters"]["class_names"] = {"value": ",".join(NO_DISGUST_CLASS_NAMES)}
+    return sweep_config
+
+
 def create_finetune_sweep_config():
     return {
         "method": "bayes",
@@ -1082,6 +1176,15 @@ def create_finetune_sweep_config():
             "num_classes": {"value": 7},
         },
     }
+
+
+def create_finetune_no_disgust_sweep_config():
+    sweep_config = create_finetune_sweep_config()
+    sweep_config["parameters"]["dataset_path"] = {"value": NO_DISGUST_DATASET_PATH}
+    sweep_config["parameters"]["dataset_name"] = {"value": DEFAULT_DATASET_NAME}
+    sweep_config["parameters"]["num_classes"] = {"value": 6}
+    sweep_config["parameters"]["class_names"] = {"value": ",".join(NO_DISGUST_CLASS_NAMES)}
+    return sweep_config
 
 
 def create_manual_debug_runs():
@@ -1109,14 +1212,47 @@ def create_manual_debug_runs():
     ]
 
 
-def launch_sweep(sweep_type, count=None):
+def apply_sweep_overrides(sweep_config, imbalance_strategy=None, min_quality_score=None):
+    parameters = sweep_config["parameters"]
+
+    if imbalance_strategy is not None:
+        parameters["imbalance_strategy"] = {"value": imbalance_strategy}
+
+    if min_quality_score is not None:
+        quality_value = None if min_quality_score == "none" else float(min_quality_score)
+        parameters["min_quality_score"] = {"value": quality_value}
+
+    return sweep_config
+
+
+def build_sweep_config(sweep_type, imbalance_strategy=None, min_quality_score=None):
     if sweep_type == "baseline":
         sweep_config = create_baseline_sweep_config()
+    elif sweep_type == "baseline_no_disgust":
+        sweep_config = create_baseline_no_disgust_sweep_config()
     elif sweep_type == "finetune":
         sweep_config = create_finetune_sweep_config()
+    elif sweep_type == "finetune_no_disgust":
+        sweep_config = create_finetune_no_disgust_sweep_config()
     else:
-        raise ValueError("sweep_type must be 'baseline' or 'finetune'")
+        raise ValueError(
+            "sweep_type must be 'baseline', 'baseline_no_disgust', "
+            "'finetune', or 'finetune_no_disgust'"
+        )
 
+    return apply_sweep_overrides(
+        sweep_config,
+        imbalance_strategy=imbalance_strategy,
+        min_quality_score=min_quality_score,
+    )
+
+
+def launch_sweep(sweep_type, count=None, imbalance_strategy=None, min_quality_score=None):
+    sweep_config = build_sweep_config(
+        sweep_type,
+        imbalance_strategy=imbalance_strategy,
+        min_quality_score=min_quality_score,
+    )
     sweep_id = wandb.sweep(sweep_config, project=PROJECT_NAME)
     print(f"Created {sweep_type} sweep: {sweep_id}")
     SWEEP_PROGRESS["current"] = 0
@@ -1148,6 +1284,15 @@ def build_arg_parser():
     parser.add_argument("--run-name", default=None, help="Optional W&B run name override.")
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--num-workers", type=int, default=None)
+    parser.add_argument("--num-classes", type=int, default=None)
+    parser.add_argument(
+        "--class-names",
+        default=None,
+        help="Comma-separated class names matching label IDs, e.g. Angry,Fear,Happy,Sad,Surprise,Neutral.",
+    )
+    parser.add_argument("--dataset-name", default=None, help="Hugging Face dataset name.")
+    parser.add_argument("--dataset-path", default=None, help="Local dataset saved with datasets.save_to_disk().")
+    parser.add_argument("--dataset-cache-dir", default=None, help="Hugging Face dataset cache directory.")
     parser.add_argument("--epochs", type=int, default=None, help="Baseline total epochs.")
     parser.add_argument("--lr", type=float, default=None)
     parser.add_argument("--weight-decay", type=float, default=None)
@@ -1174,11 +1319,22 @@ def build_arg_parser():
     parser.add_argument("--unfreeze-from-block", type=int, default=None)
     parser.add_argument(
         "--sweep-type",
-        choices=["baseline", "finetune"],
+        choices=["baseline", "baseline_no_disgust", "finetune", "finetune_no_disgust"],
         default="baseline",
         help="Sweep family to launch when --mode sweep is used.",
     )
     parser.add_argument("--sweep-count", type=int, default=None, help="Optional max number of sweep runs.")
+    parser.add_argument(
+        "--sweep-imbalance-strategy",
+        choices=["none", "class_weighted_loss", "weighted_sampler"],
+        default=None,
+        help="Lock imbalance_strategy in sweep mode instead of searching it.",
+    )
+    parser.add_argument(
+        "--sweep-min-quality-score",
+        default=None,
+        help="Lock min_quality_score in sweep mode. Use 'none' for no quality filter.",
+    )
     parser.add_argument(
         "--print-sweep-config",
         action="store_true",
@@ -1207,6 +1363,11 @@ def cli_args_to_config(args):
         "run_name": args.run_name,
         "batch_size": args.batch_size,
         "num_workers": args.num_workers,
+        "num_classes": args.num_classes,
+        "class_names": args.class_names,
+        "dataset_name": args.dataset_name,
+        "dataset_path": args.dataset_path,
+        "dataset_cache_dir": args.dataset_cache_dir,
         "epochs": args.epochs,
         "lr": args.lr,
         "weight_decay": args.weight_decay,
@@ -1245,10 +1406,10 @@ def main():
     maybe_login_to_wandb(args.skip_wandb_login)
 
     if args.print_sweep_config:
-        sweep_config = (
-            create_baseline_sweep_config()
-            if args.sweep_type == "baseline"
-            else create_finetune_sweep_config()
+        sweep_config = build_sweep_config(
+            args.sweep_type,
+            imbalance_strategy=args.sweep_imbalance_strategy,
+            min_quality_score=args.sweep_min_quality_score,
         )
         builtins.print(sweep_config)
         return
@@ -1278,7 +1439,12 @@ def main():
             f"f1={results['test_f1']:.4f}\n"
         )
     elif args.mode == "sweep":
-        launch_sweep(sweep_type=args.sweep_type, count=args.sweep_count)
+        launch_sweep(
+            sweep_type=args.sweep_type,
+            count=args.sweep_count,
+            imbalance_strategy=args.sweep_imbalance_strategy,
+            min_quality_score=args.sweep_min_quality_score,
+        )
     elif args.mode == "agent":
         sweep_train()
     else:
