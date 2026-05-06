@@ -176,6 +176,7 @@ def create_app() -> FastAPI:
     async def transcribe_audio(
         audio: UploadFile = File(...),
         task: str = Form(default="transcribe"),
+        language: str | None = Form(default=None),
     ) -> TranscriptionResponse:
         audio_bytes = await audio.read()
         try:
@@ -183,6 +184,7 @@ def create_app() -> FastAPI:
                 audio_bytes,
                 filename=audio.filename,
                 task=task,
+                language=language,
             )
         except STTUnavailableError as exc:
             raise HTTPException(status_code=503, detail=str(exc))

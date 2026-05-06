@@ -20,6 +20,11 @@ def main():
         action="store_true",
         help="Shortcut for --task translate.",
     )
+    parser.add_argument(
+        "--language",
+        default=None,
+        help="Optional Whisper language code, for example en.",
+    )
     args = parser.parse_args()
     task = "translate" if args.translate else args.task
 
@@ -30,7 +35,7 @@ def main():
         response = requests.post(
             f"{BASE_URL}/speech-to-text/transcribe",
             files=files,
-            data={"task": task},
+            data={"task": task, "language": args.language or ""},
             timeout=300,
         )
 

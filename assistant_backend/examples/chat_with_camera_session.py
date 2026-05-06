@@ -147,21 +147,21 @@ def stream_assistant_reply(session_id, prompt, use_cached_emotion=True, render_m
         return metadata, done_payload
 
 
-def transcribe_audio_bytes(audio_bytes, task="transcribe", timeout=300):
+def transcribe_audio_bytes(audio_bytes, task="transcribe", language="en", timeout=300):
     files = {
         "audio": ("microphone_recording.wav", audio_bytes, "audio/wav"),
     }
     response = requests.post(
         f"{BASE_URL}/speech-to-text/transcribe",
         files=files,
-        data={"task": task},
+        data={"task": task, "language": language or ""},
         timeout=timeout,
     )
     response.raise_for_status()
     return response.json()
 
 
-def transcribe_microphone_live(max_duration_seconds, sample_rate, device, chunk_seconds):
+def transcribe_microphone_live(max_duration_seconds, sample_rate, device, chunk_seconds, language):
     print(
         f"Recording from microphone. Press any key to stop, "
         f"or wait {max_duration_seconds:.1f}s."
@@ -176,7 +176,7 @@ def transcribe_microphone_live(max_duration_seconds, sample_rate, device, chunk_
     ):
         label = "final" if is_final else f"{elapsed_seconds:.1f}s"
         print(f"[voice {label}] transcribing...", flush=True)
-        result = transcribe_audio_bytes(audio_bytes)
+        result = transcribe_audio_bytes(audio_bytes, language=language)
         transcript = result.get("transcript", "").strip()
         if transcript:
             latest_transcript = transcript
@@ -185,7 +185,7 @@ def transcribe_microphone_live(max_duration_seconds, sample_rate, device, chunk_
     return latest_transcript
 
 
-def transcribe_microphone_once(max_duration_seconds, sample_rate, device):
+def transcribe_microphone_once(max_duration_seconds, sample_rate, device, language):
     from audio_capture import record_wav_bytes_until_keypress
 
     print(
@@ -197,7 +197,7 @@ def transcribe_microphone_once(max_duration_seconds, sample_rate, device):
         sample_rate=sample_rate,
         device=device,
     )
-    result = transcribe_audio_bytes(audio_bytes)
+    result = transcribe_audio_bytes(audio_bytes, language=language)
     return result.get("transcript", "").strip()
 
 
@@ -207,6 +207,7 @@ def transcribe_microphone(
     device,
     live_transcript,
     chunk_seconds,
+    language,
 ):
     if live_transcript:
         return transcribe_microphone_live(
@@ -214,12 +215,14 @@ def transcribe_microphone(
             sample_rate=sample_rate,
             device=device,
             chunk_seconds=chunk_seconds,
+            language=language,
         )
 
     return transcribe_microphone_once(
         max_duration_seconds=max_duration_seconds,
         sample_rate=sample_rate,
         device=device,
+        language=language,
     )
 
 
@@ -270,6 +273,11 @@ def main():
         "--voice-device",
         default=None,
         help="Optional sounddevice input device id or name. Omit to use the Windows default microphone.",
+    )
+    parser.add_argument(
+        "--voice-language",
+        default="en",
+        help="Whisper language code used by /VoiceToText. Defaults to English.",
     )
     parser.add_argument(
         "--voice-live-chunk-seconds",
@@ -360,6 +368,7 @@ def main():
                         device=args.voice_device,
                         live_transcript=not args.disable_live_voice_transcript,
                         chunk_seconds=args.voice_live_chunk_seconds,
+                        language=args.voice_language,
                     )
                     print("Transcript:")
                     print(transcript)

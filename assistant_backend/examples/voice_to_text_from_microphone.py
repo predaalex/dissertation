@@ -9,14 +9,20 @@ from audio_capture import list_input_devices, record_wav_bytes
 BASE_URL = "http://127.0.0.1:8000"
 
 
-def transcribe_audio_bytes(audio_bytes: bytes, task="transcribe", filename="microphone_recording.wav", timeout=300):
+def transcribe_audio_bytes(
+    audio_bytes: bytes,
+    task="transcribe",
+    filename="microphone_recording.wav",
+    language=None,
+    timeout=300,
+):
     files = {
         "audio": (filename, audio_bytes, "audio/wav"),
     }
     response = requests.post(
         f"{BASE_URL}/speech-to-text/transcribe",
         files=files,
-        data={"task": task},
+        data={"task": task, "language": language or ""},
         timeout=timeout,
     )
     response.raise_for_status()
@@ -59,6 +65,11 @@ def main():
         help="Whisper task to run. Use translate to translate speech into English.",
     )
     parser.add_argument(
+        "--language",
+        default=None,
+        help="Optional Whisper language code, for example en.",
+    )
+    parser.add_argument(
         "--translate",
         action="store_true",
         help="Shortcut for --task translate.",
@@ -97,7 +108,7 @@ def main():
         print(f"Saved recording to {output_path}")
 
     print("Sending audio to /speech-to-text/transcribe...")
-    result = transcribe_audio_bytes(audio_bytes, task=task, filename=filename)
+    result = transcribe_audio_bytes(audio_bytes, task=task, filename=filename, language=args.language)
     print("Text:")
     print(result.get("transcript", ""))
     print("Raw response:")

@@ -784,12 +784,44 @@ def evaluate_best_checkpoint(model, test_loader, criterion, device, checkpoint_p
 
 
 def default_run_name(config):
-    return (
-        f"{config['strategy']}_"
-        f"bs{int(config['batch_size'])}_"
-        f"lr{float(config['lr']):.0e}_"
-        f"frac{float(config['dataset_fraction']):.2f}"
-    )
+    parts = [
+        str(config["strategy"]),
+        str(config.get("imbalance_strategy", "class_weighted_loss")),
+        f"bs{int(config['batch_size'])}",
+        f"lr{float(config['lr']):.0e}",
+        f"frac{float(config['dataset_fraction']):.2f}",
+    ]
+
+    if config.get("min_quality_score") is not None:
+        parts.append(f"q{float(config['min_quality_score']):.2f}")
+
+    if config["strategy"] == "baseline":
+        parts.append(f"ep{int(config['epochs'])}")
+    else:
+        parts.extend(
+            [
+                f"head{int(config['freeze_epochs'])}",
+                f"ft{int(config['finetune_epochs'])}",
+                f"ftlr{float(config['finetune_lr']):.0e}",
+                f"uf{int(config['unfreeze_from_block'])}",
+            ]
+        )
+
+    return "_".join(parts)
+
+
+def build_run_tags(config):
+    tags = [
+        config["strategy"],
+        "mobilenetv2",
+        "fer2013",
+        str(config.get("imbalance_strategy", "class_weighted_loss")),
+    ]
+
+    if config.get("min_quality_score") is not None:
+        tags.append("quality_filtered")
+
+    return tags
 
 
 def prepare_run_config(run_config):
@@ -841,7 +873,7 @@ def run_training(config_overrides=None):
         project=PROJECT_NAME,
         name=config["run_name"],
         config=config,
-        tags=[config["strategy"], "mobilenetv2", "fer2013"],
+        tags=build_run_tags(config),
     )
     config = dict(wandb.config)
     config = prepare_run_config(config)
@@ -851,6 +883,8 @@ def run_training(config_overrides=None):
         run.name = resolved_run_name
         config["run_name"] = resolved_run_name
         wandb.config.update({"run_name": resolved_run_name}, allow_val_change=True)
+
+    run.tags = build_run_tags(config)
 
     print(
         "Resolved config: "

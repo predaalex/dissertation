@@ -33,6 +33,7 @@ class SpeechToTextService:
         audio_bytes: bytes,
         filename: str | None = None,
         task: str = "transcribe",
+        language: str | None = None,
     ) -> str:
         self._ensure_model_loaded()
         if task not in {"transcribe", "translate"}:
@@ -44,8 +45,9 @@ class SpeechToTextService:
             "verbose": False,
             "task": task,
         }
-        if self.language:
-            options["language"] = self.language
+        effective_language = language if language is not None else self.language
+        if effective_language:
+            options["language"] = effective_language
 
         temp_path = None
         try:
