@@ -273,12 +273,12 @@ def build_optimizer(model, lr, weight_decay):
     return torch.optim.AdamW(trainable_params, lr=lr, weight_decay=weight_decay)
 
 
-def build_scheduler(optimizer):
+def build_scheduler(optimizer, config):
     return torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         mode="max",
-        factor=0.5,
-        patience=2,
+        factor=float(config.get("lr_scheduler_factor", 0.5)),
+        patience=int(config.get("lr_scheduler_patience", 1)),
     )
 
 
@@ -649,7 +649,24 @@ def train_phase(
             return_details=True,
         )
 
+        lr_before_scheduler = optimizer.param_groups[0]["lr"]
         scheduler.step(val_f1)
+        lr_after_scheduler = optimizer.param_groups[0]["lr"]
+        if lr_after_scheduler < lr_before_scheduler:
+            print(
+                f"Learning rate reduced: {lr_before_scheduler:.2e} -> "
+                f"{lr_after_scheduler:.2e} after val_f1 plateau."
+            )
+            wandb.log(
+                {
+                    "train/lr_reduced": 1,
+                    "train/lr_before_reduce": lr_before_scheduler,
+                    "train/lr_after_reduce": lr_after_scheduler,
+                    "phase/name": phase_name,
+                },
+                step=global_step,
+            )
+
         elapsed = time.time() - start_time
         epoch_number = epoch_idx + 1
 
@@ -720,7 +737,7 @@ def fit_baseline(model, train_loader, val_loader, criterion, config, device, run
     freeze_backbone_train_head(model)
 
     optimizer = build_optimizer(model, lr=float(config["lr"]), weight_decay=float(config["weight_decay"]))
-    scheduler = build_scheduler(optimizer)
+    scheduler = build_scheduler(optimizer, config)
     scaler = build_scaler(device)
     best_state = {
         "best_val_f1": float("-inf"),
@@ -772,7 +789,7 @@ def fit_finetune(model, train_loader, val_loader, criterion, config, device, run
             lr=float(config["lr"]),
             weight_decay=float(config["weight_decay"]),
         )
-        head_scheduler = build_scheduler(head_optimizer)
+        head_scheduler = build_scheduler(head_optimizer, config)
         best_state, global_step, checkpoint_path = train_phase(
             model=model,
             train_loader=train_loader,
@@ -798,7 +815,7 @@ def fit_finetune(model, train_loader, val_loader, criterion, config, device, run
         lr=float(config["finetune_lr"]),
         weight_decay=float(config["finetune_weight_decay"]),
     )
-    finetune_scheduler = build_scheduler(finetune_optimizer)
+    finetune_scheduler = build_scheduler(finetune_optimizer, config)
 
     finetune_epochs = int(config["finetune_epochs"])
     if finetune_epochs > 0:
@@ -930,6 +947,8 @@ def prepare_run_config(run_config):
     config.setdefault("label_smoothing", 0.0)
     config.setdefault("grad_clip", 1.0)
     config.setdefault("early_stopping_patience", 3)
+    config.setdefault("lr_scheduler_patience", 1)
+    config.setdefault("lr_scheduler_factor", 0.5)
     config.setdefault("dataset_fraction", DEFAULT_DATASET_FRACTION)
     config.setdefault("imbalance_strategy", "class_weighted_loss")
     config.setdefault("min_quality_score", None)
@@ -1152,6 +1171,8 @@ def create_baseline_sweep_config():
             "label_smoothing": {"values": [0.0, 0.05, 0.1]},
             "grad_clip": {"values": [0.5, 1.0]},
             "early_stopping_patience": {"value": 3},
+            "lr_scheduler_patience": {"value": 1},
+            "lr_scheduler_factor": {"value": 0.5},
             "imbalance_strategy": {"values": ["none", "class_weighted_loss", "weighted_sampler"]},
             "dataset_fraction": {"value": DEFAULT_DATASET_FRACTION},
             "min_quality_score": {"values": [None, 0.35, 0.5]},
@@ -1188,6 +1209,8 @@ def create_finetune_sweep_config():
             "label_smoothing": {"values": [0.0, 0.05]},
             "grad_clip": {"values": [0.5, 1.0]},
             "early_stopping_patience": {"value": 3},
+            "lr_scheduler_patience": {"value": 1},
+            "lr_scheduler_factor": {"value": 0.5},
             "imbalance_strategy": {"values": ["class_weighted_loss", "weighted_sampler"]},
             "dataset_fraction": {"value": DEFAULT_DATASET_FRACTION},
             "min_quality_score": {"values": [None, 0.35, 0.5]},
@@ -1319,6 +1342,8 @@ def build_arg_parser():
     parser.add_argument("--label-smoothing", type=float, default=None)
     parser.add_argument("--grad-clip", type=float, default=None)
     parser.add_argument("--early-stopping-patience", type=int, default=None)
+    parser.add_argument("--lr-scheduler-patience", type=int, default=None)
+    parser.add_argument("--lr-scheduler-factor", type=float, default=None)
     parser.add_argument("--dataset-fraction", type=float, default=None)
     parser.add_argument(
         "--imbalance-strategy",
@@ -1395,6 +1420,8 @@ def cli_args_to_config(args):
         "label_smoothing": args.label_smoothing,
         "grad_clip": args.grad_clip,
         "early_stopping_patience": args.early_stopping_patience,
+        "lr_scheduler_patience": args.lr_scheduler_patience,
+        "lr_scheduler_factor": args.lr_scheduler_factor,
         "dataset_fraction": args.dataset_fraction,
         "imbalance_strategy": args.imbalance_strategy,
         "min_quality_score": args.min_quality_score,
