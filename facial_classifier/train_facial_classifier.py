@@ -613,6 +613,8 @@ def train_phase(
     trainable_params = count_trainable_parameters(model)
     class_names = get_class_names(config)
     num_classes = int(config["num_classes"])
+    early_stopping_patience = int(config.get("early_stopping_patience", 3))
+    epochs_without_improvement = 0
 
     for epoch_idx in range(num_epochs):
         start_time = time.time()
@@ -696,6 +698,20 @@ def train_phase(
                 phase_name=phase_name,
             )
             print(f"Saved best model to {checkpoint_path}.")
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
+            print(
+                f"No val_f1 improvement for {epochs_without_improvement}/"
+                f"{early_stopping_patience} epochs."
+            )
+
+            if epochs_without_improvement >= early_stopping_patience:
+                print(
+                    f"Early stopping {phase_name} phase at epoch {epoch_number}. "
+                    f"Best val_f1={best_state['best_val_f1']:.4f}."
+                )
+                break
 
     return best_state, global_step, checkpoint_path
 
@@ -913,6 +929,7 @@ def prepare_run_config(run_config):
     config.setdefault("dropout", 0.2)
     config.setdefault("label_smoothing", 0.0)
     config.setdefault("grad_clip", 1.0)
+    config.setdefault("early_stopping_patience", 3)
     config.setdefault("dataset_fraction", DEFAULT_DATASET_FRACTION)
     config.setdefault("imbalance_strategy", "class_weighted_loss")
     config.setdefault("min_quality_score", None)
@@ -1134,6 +1151,7 @@ def create_baseline_sweep_config():
             "dropout": {"values": [0.2, 0.3]},
             "label_smoothing": {"values": [0.0, 0.05, 0.1]},
             "grad_clip": {"values": [0.5, 1.0]},
+            "early_stopping_patience": {"value": 3},
             "imbalance_strategy": {"values": ["none", "class_weighted_loss", "weighted_sampler"]},
             "dataset_fraction": {"value": DEFAULT_DATASET_FRACTION},
             "min_quality_score": {"values": [None, 0.35, 0.5]},
@@ -1169,6 +1187,7 @@ def create_finetune_sweep_config():
             "dropout": {"values": [0.2, 0.3]},
             "label_smoothing": {"values": [0.0, 0.05]},
             "grad_clip": {"values": [0.5, 1.0]},
+            "early_stopping_patience": {"value": 3},
             "imbalance_strategy": {"values": ["class_weighted_loss", "weighted_sampler"]},
             "dataset_fraction": {"value": DEFAULT_DATASET_FRACTION},
             "min_quality_score": {"values": [None, 0.35, 0.5]},
@@ -1299,6 +1318,7 @@ def build_arg_parser():
     parser.add_argument("--dropout", type=float, default=None)
     parser.add_argument("--label-smoothing", type=float, default=None)
     parser.add_argument("--grad-clip", type=float, default=None)
+    parser.add_argument("--early-stopping-patience", type=int, default=None)
     parser.add_argument("--dataset-fraction", type=float, default=None)
     parser.add_argument(
         "--imbalance-strategy",
@@ -1374,6 +1394,7 @@ def cli_args_to_config(args):
         "dropout": args.dropout,
         "label_smoothing": args.label_smoothing,
         "grad_clip": args.grad_clip,
+        "early_stopping_patience": args.early_stopping_patience,
         "dataset_fraction": args.dataset_fraction,
         "imbalance_strategy": args.imbalance_strategy,
         "min_quality_score": args.min_quality_score,
