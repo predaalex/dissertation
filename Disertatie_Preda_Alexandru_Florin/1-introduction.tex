@@ -1,0 +1,64 @@
+\chapter{Introduction}
+
+\section{Motivation}
+
+In the current AI assistants era, all interactions between human-computer are based on text input, voice translation or text to speech. When human communicate with each other they also included non-verbal signs, such as facial expression, tone, hesitation, or any other body language. A desktop assistant that can observe apparent facial emotion can adapt its responses more naturally.
+
+Because these interactions between human and any AI assistant contain sensitive data, local execution of such services are very valuable.
+
+In this project, I aim to explore whether emotion recognition can be valuable in the interaction between humans and AI assistants, not just to evaluate the performance of a class classification model.
+
+\section{Problem Statement}
+
+Standard interaction between users and AI Assistants lacks the awareness of the emotional state.
+
+Although current classification models advanced from clasical CNNs embedding attention layer mechanisms or having the hardware capabilities to train deeper models, facial emotion recognition is still challenging because it can be noisy, especially in real-world webcam conditions. 
+
+Given an uncertain facial emotion, another challenge is integrating it as contextual information in the human-computer interaction, without treating it as absolute truth.
+
+The main provocation is integrating individual AI components into one orchestrated architecture that can run locally on common users devices: webcam emotion recognition, speech-to-text, LLM generation, session management, and real-time responses.
+
+
+\section{Objectives of the Dissertation}
+
+The main goal of this master's thesis is to design and implement a desktop AI assistant that supports both text and voice interaction, while also using the user's apparent emotional state as additional context. The purpose of this emotional awareness is to give the LLM more information about the current interaction, so that it can generate more appropriate and empathetic responses.
+
+To achieve this goal, the application is built as a modular system composed of several main components.
+
+The first component is a facial emotion recognition model. This model is fine-tuned using PyTorch on a public facial expression dataset. Its role is to classify the user's apparent emotion from images captured from the webcam.
+
+The second component is the real-time emotion detection pipeline. This pipeline uses the fine-tuned model to predict the user's apparent emotion while the user interacts with the assistant. The detected emotion is used as a soft contextual signal that can help the assistant adapt its answer.
+
+The third component is the speech-to-text functionality, based on a pretrained model. This component allows the user to interact with the assistant through voice input. The recorded audio is transcribed into text before it is sent to the LLM.
+
+The fourth component is the backend of the application. It exposes the main functionality through API endpoints, including session management, emotion prediction, speech transcription, and assistant response generation. This modular backend makes the system easier to test, extend, and connect to different user interfaces.
+
+\section{Personal Contributions}
+
+My main contribution is the design and implementation of an emotion-aware desktop AI assistant. The system brings together several components: facial emotion recognition, speech-to-text, local language model inference, session management, and real-time response streaming.
+
+I designed the backend as a modular FastAPI application. It exposes separate endpoints for creating and managing sessions, predicting emotions from images, transcribing audio, and generating assistant responses.
+
+The core part of the project is the facial emotion recognition model. I implemented the training pipeline in PyTorch using a MobileNetV2-based model and a public facial expression dataset. The pipeline includes data preprocessing, image transformations, model training, checkpoint saving, metric logging, and evaluation.
+
+During training, I first compared different methods for handling class imbalance. I also tested the effect of filtering images based on quality. After choosing the most promising imbalance strategy and quality filtering setting, I ran hyperparameter sweeps for both the baseline model and the fine-tuned model on a smaller part of the dataset. From these experiments, I selected the best hyperparameter configuration and trained the final model on the full dataset.
+
+I also implemented the connection between the trained emotion model and the assistant. The webcam feed is captured periodically, and the predicted facial emotion is stored in the current user session. This emotion is then added to the prompt and sent to the local LLM. The system treats the emotion only as extra context, not as proof of how the user really feels.
+
+Another contribution is voice interaction. The application can record microphone input, transcribe it using a speech-to-text model, and send the resulting text to the assistant. The final response is generated by a local LLM through Ollama and streamed back to the user.
+
+Overall, the project combines machine learning with a working end-to-end assistant application.
+
+\section{Structure of the Thesis}
+
+\begin{itemize}
+    \item Chapter 1 introduces the motivation, objectives, and contributions.
+    \item  Chapter 2 presents background concepts: affective computing, FER, transfer learning, Whisper, Ollama, and FastAPI.
+    \item  Chapter 3 describes the architecture and system design.
+    \item  Chapter 4 focuses on the facial emotion recognition model.
+    \item  Chapter 5 explains the experimental methodology.
+    \item  Chapter 6 presents and discusses results.
+    \item  Chapter 7 describes the final assistant integration.
+    \item  Chapter 8 covers testing and validation.
+    \item  Chapter 9 summarizes conclusions and future work.
+\end{itemize}
