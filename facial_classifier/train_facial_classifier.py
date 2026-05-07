@@ -2,7 +2,6 @@ import builtins
 import copy
 import argparse
 from collections import Counter
-import json
 import os
 import shutil
 import time
@@ -17,7 +16,7 @@ import seaborn as sns
 import torch
 import torch.multiprocessing as mp
 import wandb
-from datasets import load_dataset, load_from_disk
+from datasets import load_dataset
 from PIL import Image
 from pytorch_model_summary import summary
 from sklearn.metrics import confusion_matrix, f1_score, precision_recall_fscore_support
@@ -36,13 +35,11 @@ ORIGINAL_CLASS_NAMES = [
     "Neutral",
 ]
 DEFAULT_CLASS_NAMES = ORIGINAL_CLASS_NAMES
-NO_DISGUST_CLASS_NAMES = ["Angry", "Fear", "Happy", "Sad", "Surprise", "Neutral"]
 
 PROJECT_NAME = "POWERFUL_DISSERTATION"
 DEFAULT_DATASET_NAME = "abhilash88/fer2013-enhanced"
 DEFAULT_DATASET_FRACTION = 0.2
 DATASET_CACHE_DIR = "datasets/fer2013-enhanced"
-NO_DISGUST_DATASET_PATH = "datasets/fer2013-enhanced-no-disgust"
 MODELS_DIR = Path("models")
 SWEEP_PROGRESS = {"current": 0, "total": None}
 
@@ -54,18 +51,6 @@ def print(*args, **kwargs):
 
 def get_timestamp():
     return datetime.now().strftime("%Y%m%d_%H%M%S")
-
-
-def load_dataset_metadata(dataset_path):
-    if not dataset_path:
-        return {}
-
-    metadata_path = Path(dataset_path) / "metadata.json"
-    if not metadata_path.exists():
-        return {}
-
-    with open(metadata_path, "r", encoding="utf-8") as file:
-        return json.load(file)
 
 
 def ensure_pil_rgb(img):
@@ -178,14 +163,9 @@ def get_transforms():
 
 
 def get_dataloaders(config):
-    dataset_path = config.get("dataset_path")
     dataset_name = config.get("dataset_name", DEFAULT_DATASET_NAME)
     dataset_cache_dir = config.get("dataset_cache_dir", DATASET_CACHE_DIR)
-
-    if dataset_path:
-        dataset = load_from_disk(dataset_path)
-    else:
-        dataset = load_dataset(dataset_name, cache_dir=dataset_cache_dir)
+    dataset = load_dataset(dataset_name, cache_dir=dataset_cache_dir)
 
     train_transform, eval_transform = get_transforms()
     fraction = float(config.get("dataset_fraction", DEFAULT_DATASET_FRACTION))
@@ -932,14 +912,9 @@ def prepare_run_config(run_config):
     config.setdefault("batch_size", 64)
     config.setdefault("num_workers", 0)
     config.setdefault("dataset_name", DEFAULT_DATASET_NAME)
-    config.setdefault("dataset_path", None)
     config.setdefault("dataset_cache_dir", DATASET_CACHE_DIR)
-    dataset_metadata = load_dataset_metadata(config.get("dataset_path"))
-    config.setdefault("num_classes", dataset_metadata.get("num_classes", 7))
-    config.setdefault(
-        "class_names",
-        dataset_metadata.get("class_names", DEFAULT_CLASS_NAMES[: int(config["num_classes"])]),
-    )
+    config.setdefault("num_classes", 7)
+    config.setdefault("class_names", DEFAULT_CLASS_NAMES)
     config.setdefault("epochs", 10)
     config.setdefault("lr", 1e-4)
     config.setdefault("weight_decay", 1e-4)
@@ -1012,7 +987,7 @@ def run_training(config_overrides=None):
         f"imbalance_strategy={config['imbalance_strategy']}"
     )
     class_names = get_class_names(config)
-    print(f"Dataset source: {config.get('dataset_path') or config.get('dataset_name')}")
+    print(f"Dataset source: {config.get('dataset_name')}")
     print(f"Classes: {class_names}")
     if config["strategy"] == "finetune":
         print(
@@ -1164,12 +1139,12 @@ def create_baseline_sweep_config():
         "parameters": {
             "strategy": {"value": "baseline"},
             "batch_size": {"values": [32, 64]},
-            "epochs": {"values": [8, 10, 12, 16, 24]},
+            "epochs": {"values": [100]},
             "lr": {"values": [1e-4, 3e-4, 5e-4]},
             "weight_decay": {"values": [1e-5, 1e-4, 1e-3]},
             "dropout": {"values": [0.2, 0.3]},
             "label_smoothing": {"values": [0.0, 0.05, 0.1]},
-            "grad_clip": {"values": [0.5, 1.0]},
+            "grad_clip": {"values": [0.5, 1.0, 2.0]},
             "early_stopping_patience": {"value": 3},
             "lr_scheduler_patience": {"value": 1},
             "lr_scheduler_factor": {"value": 0.5},
@@ -1182,15 +1157,6 @@ def create_baseline_sweep_config():
     }
 
 
-def create_baseline_no_disgust_sweep_config():
-    sweep_config = create_baseline_sweep_config()
-    sweep_config["parameters"]["dataset_path"] = {"value": NO_DISGUST_DATASET_PATH}
-    sweep_config["parameters"]["dataset_name"] = {"value": DEFAULT_DATASET_NAME}
-    sweep_config["parameters"]["num_classes"] = {"value": 6}
-    sweep_config["parameters"]["class_names"] = {"value": ",".join(NO_DISGUST_CLASS_NAMES)}
-    return sweep_config
-
-
 def create_finetune_sweep_config():
     return {
         "method": "bayes",
@@ -1198,16 +1164,16 @@ def create_finetune_sweep_config():
         "parameters": {
             "strategy": {"value": "finetune"},
             "batch_size": {"values": [32, 64]},
-            "freeze_epochs": {"values": [3, 5]},
-            "finetune_epochs": {"values": [3, 5, 7]},
-            "lr": {"values": [1e-4, 3e-4]},
+            "freeze_epochs": {"values": 100},
+            "finetune_epochs": {"values": 100},
+            "lr": {"values": [1e-4, 3e-4, 5e-4]},
             "weight_decay": {"values": [1e-5, 1e-4]},
-            "finetune_lr": {"values": [1e-5, 3e-5, 5e-5]},
+            "finetune_lr": {"values": [5e-4, 1e-5, 3e-5, 5e-5]},
             "finetune_weight_decay": {"values": [1e-5, 1e-4, 1e-3]},
-            "unfreeze_from_block": {"values": [12, 14, 16]},
+            "unfreeze_from_block": {"values": [12, 14, 16, 26]},
             "dropout": {"values": [0.2, 0.3]},
             "label_smoothing": {"values": [0.0, 0.05]},
-            "grad_clip": {"values": [0.5, 1.0]},
+            "grad_clip": {"values": [0.5, 1.0, 2.0]},
             "early_stopping_patience": {"value": 3},
             "lr_scheduler_patience": {"value": 1},
             "lr_scheduler_factor": {"value": 0.5},
@@ -1218,15 +1184,6 @@ def create_finetune_sweep_config():
             "num_classes": {"value": 7},
         },
     }
-
-
-def create_finetune_no_disgust_sweep_config():
-    sweep_config = create_finetune_sweep_config()
-    sweep_config["parameters"]["dataset_path"] = {"value": NO_DISGUST_DATASET_PATH}
-    sweep_config["parameters"]["dataset_name"] = {"value": DEFAULT_DATASET_NAME}
-    sweep_config["parameters"]["num_classes"] = {"value": 6}
-    sweep_config["parameters"]["class_names"] = {"value": ",".join(NO_DISGUST_CLASS_NAMES)}
-    return sweep_config
 
 
 def create_manual_debug_runs():
@@ -1270,17 +1227,10 @@ def apply_sweep_overrides(sweep_config, imbalance_strategy=None, min_quality_sco
 def build_sweep_config(sweep_type, imbalance_strategy=None, min_quality_score=None):
     if sweep_type == "baseline":
         sweep_config = create_baseline_sweep_config()
-    elif sweep_type == "baseline_no_disgust":
-        sweep_config = create_baseline_no_disgust_sweep_config()
     elif sweep_type == "finetune":
         sweep_config = create_finetune_sweep_config()
-    elif sweep_type == "finetune_no_disgust":
-        sweep_config = create_finetune_no_disgust_sweep_config()
     else:
-        raise ValueError(
-            "sweep_type must be 'baseline', 'baseline_no_disgust', "
-            "'finetune', or 'finetune_no_disgust'"
-        )
+        raise ValueError("sweep_type must be 'baseline' or 'finetune'")
 
     return apply_sweep_overrides(
         sweep_config,
@@ -1326,14 +1276,7 @@ def build_arg_parser():
     parser.add_argument("--run-name", default=None, help="Optional W&B run name override.")
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--num-workers", type=int, default=None)
-    parser.add_argument("--num-classes", type=int, default=None)
-    parser.add_argument(
-        "--class-names",
-        default=None,
-        help="Comma-separated class names matching label IDs, e.g. Angry,Fear,Happy,Sad,Surprise,Neutral.",
-    )
     parser.add_argument("--dataset-name", default=None, help="Hugging Face dataset name.")
-    parser.add_argument("--dataset-path", default=None, help="Local dataset saved with datasets.save_to_disk().")
     parser.add_argument("--dataset-cache-dir", default=None, help="Hugging Face dataset cache directory.")
     parser.add_argument("--epochs", type=int, default=None, help="Baseline total epochs.")
     parser.add_argument("--lr", type=float, default=None)
@@ -1364,7 +1307,7 @@ def build_arg_parser():
     parser.add_argument("--unfreeze-from-block", type=int, default=None)
     parser.add_argument(
         "--sweep-type",
-        choices=["baseline", "baseline_no_disgust", "finetune", "finetune_no_disgust"],
+        choices=["baseline", "finetune"],
         default="baseline",
         help="Sweep family to launch when --mode sweep is used.",
     )
@@ -1408,10 +1351,7 @@ def cli_args_to_config(args):
         "run_name": args.run_name,
         "batch_size": args.batch_size,
         "num_workers": args.num_workers,
-        "num_classes": args.num_classes,
-        "class_names": args.class_names,
         "dataset_name": args.dataset_name,
-        "dataset_path": args.dataset_path,
         "dataset_cache_dir": args.dataset_cache_dir,
         "epochs": args.epochs,
         "lr": args.lr,
