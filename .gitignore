@@ -9,3 +9,27 @@ playground.ipynb
 /facial_classifier/models
 /facial_classifier/datasets
 /recordings
+
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# LaTeX build artifacts
+Disertatie_Preda_Alexandru_Florin/*.aux
+Disertatie_Preda_Alexandru_Florin/*.bbl
+Disertatie_Preda_Alexandru_Florin/*.bcf
+Disertatie_Preda_Alexandru_Florin/*.blg
+Disertatie_Preda_Alexandru_Florin/*.equ
+Disertatie_Preda_Alexandru_Florin/*.fdb_latexmk
+Disertatie_Preda_Alexandru_Florin/*.fls
+Disertatie_Preda_Alexandru_Florin/*.lof
+Disertatie_Preda_Alexandru_Florin/*.log
+Disertatie_Preda_Alexandru_Florin/*.lot
+Disertatie_Preda_Alexandru_Florin/*.out
+Disertatie_Preda_Alexandru_Florin/*.pdf
+Disertatie_Preda_Alexandru_Florin/*.run.xml
+Disertatie_Preda_Alexandru_Florin/*.synctex.gz
+Disertatie_Preda_Alexandru_Florin/*.toc
+Disertatie_Preda_Alexandru_Florin/*.xdv
+Disertatie_Preda_Alexandru_Florin/*-SAVE-ERROR
+Disertatie_Preda_Alexandru_Florin/.vscode/

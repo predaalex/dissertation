@@ -2,16 +2,31 @@
 
 \section{Affective Computing and Facial Emotion Recognition}
 
-\section{Public Datasets for Facial Emotion Recognition}
+Affective computing is a research area focused on systems that can recognize, interpret, and react to human emotions. The field was introduced by Picard, who argued that emotion is an important part of intelligent human-computer interaction \cite{picard1997affective}.
 
-\subsection{FER2013}
+In real communication, people do not use only words. They also use facial expressions, voice tone, gestures, and context. Because of this, emotion-aware systems may analyze several types of input, such as face images, speech, and text \cite{poria2017review,mobbs2025emotionreview}. This dissertation focuses mainly on facial emotion recognition, while speech is used only as a way of converting the user's voice into text.
 
-\section{Convolutional Neural Networks and Transfer Learning}
+Facial Emotion Recognition is the task of predicting a person's apparent emotion from an image or video frame of the face. Common emotion classes include anger, disgust, fear, happiness, sadness, surprise, and neutrality. In this project, the detected facial emotion is not treated as a certain description of the user's real emotional state. Instead, it is used as additional context for the assistant.
 
-\section{MobileNetV2 for Efficient Image Classification}
+This distinction is important because facial emotion recognition is a difficult task. In practical webcam conditions, predictions can be affected by lighting, camera quality, face position, occlusions, and the ambiguity of facial expressions. Recent surveys also show that performance depends strongly on the dataset, the model architecture, and the evaluation setting \cite{mobbs2025emotionreview}. For this reason, the assistant uses the predicted emotion as a soft signal, not as a rule that controls the direction of generated answer.
 
-\section{Speech-to-Text with Whisper-Type Models}
+\section{Public Datasets and Benchmarks for Facial Emotion Recognition}
 
-\section{Local Large Language Models and Ollama}
+Facial emotion recognition models are usually trained and compared on public datasets. One of the most used benchmarks is FER2013, introduced in the Challenges in Representation Learning competition \cite{goodfellow2015challenges}. FER2013 contains low-resolution facial images labeled with seven emotion classes: angry, disgust, fear, happy, sad, surprise, and neutral.
 
-\section{Modular AI Systems and FastAPI-Based Services}
+FER2013 is useful because it is public and widely used, which makes comparison with other work easier. At the same time, it is not an easy dataset. The images have low resolution, the labels can be noisy, and the classes are not perfectly balanced. These problems are important because they influence both training and evaluation.
+
+Other datasets also exist for facial emotion recognition. AffectNet is a larger dataset that contains both categorical emotion labels and valence-arousal annotations \cite{mollahosseini2019affectnet}. Other examples include CK+, JAFFE, RAF-DB, and FERPlus. These datasets differ in size, image quality, annotation method, and acquisition conditions.
+
+Recent work still uses FER2013 to evaluate modern architectures. For example, Naik et al. use an EfficientNetB2-based model and report results on FER2013, while also pointing out problems such as low image quality, label noise, and class imbalance \cite{naik2026efficientnetb2}. This makes FER2013 a relevant choice for this dissertation, especially because the goal is not only classification accuracy, but also integration into a real-time assistant.
+
+\section{Existing Components for Local AI Assistants}
+
+Open-source tools make it possible to run AI assistant components directly on a personal computer. This is important when the application works with private data, such as user messages, microphone recordings, or images from a webcam.
+
+For speech-to-text, one of the most widely used open-source options is Whisper, a pretrained model for automatic speech recognition \cite{radford2022whisper}. Other available alternatives are wav2vec 2.0, which is based on self-supervised speech representation learning, and Vosk, which provides offline speech recognition models \cite{baevski2020wav2vec}.
+
+For response generation, large language model families provide versions that can be executed locally. Examples include Llama, Gemma, Mistral, Qwen, and Phi \cite{touvron2023llama2,gemma2024}. Tools such as Ollama simplify local deployment by downloading models, exposing them through a local API, and handling inference on the user's machine.
+
+There are also local libraries and frameworks for computer vision tasks. PyTorch and torchvision are commonly used for training and running neural networks, while OpenCV is often used for webcam access, face detection, frame processing, and image manipulation. These tools provide the basic building blocks required for applications that combine speech, language, and vision on the same device.
+

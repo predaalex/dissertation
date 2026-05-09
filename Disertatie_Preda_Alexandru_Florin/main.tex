@@ -20,13 +20,13 @@
 % Suport pentru mai multe limbi
 \usepackage{polyglossia}
 
-% Setează limba textului la română
-\setdefaultlanguage{romanian}
-% Am nevoie de engleză pentru rezumat
-\setotherlanguages{english}
+% Setează limba principală a documentului la engleză
+\setdefaultlanguage{english}
+% Am nevoie de română pentru rezumatul în limba română
+\setotherlanguages{romanian}
 
 % Indentează și primul paragraf al fiecărei noi secțiuni
-\SetLanguageKeys{romanian}{indentfirst=true}
+\SetLanguageKeys{english}{indentfirst=true}
 
 % Suport pentru diferite stiluri de ghilimele
 \usepackage{csquotes}
@@ -80,10 +80,10 @@
 \newcommand{\bigO}[1]{\symcal{O}\left(#1\right)}
 \DeclarePairedDelimiter\abs{\lvert}{\rvert}
 
-% Lista de ecuatii
+% Lista de ecuații
 \usepackage{tocloft}
 
-\newcommand{\listequationsname}{Listă de ecuații}
+\newcommand{\listequationsname}{List of Equations}
 \newlistof{myequations}{equ}{\listequationsname}
 \newcommand{\myequations}[1]{%
 \addcontentsline{equ}{myequations}{\protect\numberline{\theequation}#1}\par}
