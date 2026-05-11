@@ -18,5 +18,5 @@ class Settings:
     project_root: Path = Path(__file__).resolve().parent.parent
     emotion_model_path: str = os.getenv(
         "EMOTION_MODEL_PATH",
-        str(Path(__file__).resolve().parent.parent / "facial_classifier" / "models" / "20260426_183732_finetune_mobilenetv2_finetune_classweighted_strong_fkvjn8eq_bs32_lr3e-04_frac1.00_f10p5369.pt"),
+        str(Path(__file__).resolve().parent.parent / "facial_classifier" / "models" / "20260510_084521_finetune_finetune_weighted_sampler_c7_bs64_lr5e-04_frac1.00_head100_ft100_ftlr5e-04_uf12_awcuti3o_bs64_lr5e-04_frac1.00_f10p6751.pt"),
     )

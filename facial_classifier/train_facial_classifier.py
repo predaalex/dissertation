@@ -894,9 +894,6 @@ def default_run_name(config):
 def build_run_tags(config):
     tags = [
         config["strategy"],
-        "mobilenetv2",
-        "fer2013",
-        f"{int(config['num_classes'])}_class",
         str(config.get("imbalance_strategy", "class_weighted_loss")),
     ]
 
@@ -1164,8 +1161,8 @@ def create_finetune_sweep_config():
         "parameters": {
             "strategy": {"value": "finetune"},
             "batch_size": {"values": [32, 64]},
-            "freeze_epochs": {"values": 100},
-            "finetune_epochs": {"values": 100},
+            "freeze_epochs": {"value": 100},
+            "finetune_epochs": {"value": 100},
             "lr": {"values": [1e-4, 3e-4, 5e-4]},
             "weight_decay": {"values": [1e-5, 1e-4]},
             "finetune_lr": {"values": [5e-4, 1e-5, 3e-5, 5e-5]},
@@ -1211,7 +1208,12 @@ def create_manual_debug_runs():
     ]
 
 
-def apply_sweep_overrides(sweep_config, imbalance_strategy=None, min_quality_score=None):
+def apply_sweep_overrides(
+    sweep_config,
+    imbalance_strategy=None,
+    min_quality_score=None,
+    dataset_fraction=None,
+):
     parameters = sweep_config["parameters"]
 
     if imbalance_strategy is not None:
@@ -1221,10 +1223,18 @@ def apply_sweep_overrides(sweep_config, imbalance_strategy=None, min_quality_sco
         quality_value = None if min_quality_score == "none" else float(min_quality_score)
         parameters["min_quality_score"] = {"value": quality_value}
 
+    if dataset_fraction is not None:
+        parameters["dataset_fraction"] = {"value": float(dataset_fraction)}
+
     return sweep_config
 
 
-def build_sweep_config(sweep_type, imbalance_strategy=None, min_quality_score=None):
+def build_sweep_config(
+    sweep_type,
+    imbalance_strategy=None,
+    min_quality_score=None,
+    dataset_fraction=None,
+):
     if sweep_type == "baseline":
         sweep_config = create_baseline_sweep_config()
     elif sweep_type == "finetune":
@@ -1236,14 +1246,22 @@ def build_sweep_config(sweep_type, imbalance_strategy=None, min_quality_score=No
         sweep_config,
         imbalance_strategy=imbalance_strategy,
         min_quality_score=min_quality_score,
+        dataset_fraction=dataset_fraction,
     )
 
 
-def launch_sweep(sweep_type, count=None, imbalance_strategy=None, min_quality_score=None):
+def launch_sweep(
+    sweep_type,
+    count=None,
+    imbalance_strategy=None,
+    min_quality_score=None,
+    dataset_fraction=None,
+):
     sweep_config = build_sweep_config(
         sweep_type,
         imbalance_strategy=imbalance_strategy,
         min_quality_score=min_quality_score,
+        dataset_fraction=dataset_fraction,
     )
     sweep_id = wandb.sweep(sweep_config, project=PROJECT_NAME)
     print(f"Created {sweep_type} sweep: {sweep_id}")
@@ -1398,6 +1416,7 @@ def main():
             args.sweep_type,
             imbalance_strategy=args.sweep_imbalance_strategy,
             min_quality_score=args.sweep_min_quality_score,
+            dataset_fraction=args.dataset_fraction,
         )
         builtins.print(sweep_config)
         return
@@ -1432,6 +1451,7 @@ def main():
             count=args.sweep_count,
             imbalance_strategy=args.sweep_imbalance_strategy,
             min_quality_score=args.sweep_min_quality_score,
+            dataset_fraction=args.dataset_fraction,
         )
     elif args.mode == "agent":
         sweep_train()
