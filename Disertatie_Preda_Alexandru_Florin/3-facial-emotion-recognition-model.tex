@@ -2,7 +2,7 @@
 
 \section{Dataset Description: FER2013 Enhanced}
 
-The facial emotion recognition model was trained using FER2013 Enhanced, available on Hugging Face as \texttt{abhilash88/fer2013-enhanced} \cite{fer2013_enhanced_2025}. This dataset is based on the original FER2013 dataset, which was introduced in the Challenges in Representation Learning competition \cite{goodfellow2015challenges}. Instead of using the original FER2013 files directly, this project uses the enhanced version because it already provides dataset splits and extra information that is useful during training.
+The facial emotion recognition model was trained using FER2013 Enhanced, available on Hugging Face as \textit{abhilash88/fer2013-enhanced} \cite{fer2013_enhanced_2025}. This dataset is based on the original FER2013 dataset, which was introduced in the Challenges in Representation Learning competition \cite{goodfellow2015challenges}. Instead of using the original FER2013 files directly, my project uses the enhanced version because it already provides dataset splits and extra information that is useful during training.
 
 FER2013 Enhanced contains 35,887 grayscale face images. Each image has a resolution of 48x48 pixels and is labeled with one of seven emotion classes: angry, disgust, fear, happy, sad, surprise, and neutral. The dataset is already split into training, validation, and test sets. The split sizes are shown in Table~\ref{tab:fer2013-enhanced-splits}.
 
@@ -68,9 +68,9 @@ The quality score is useful because it allows experiments that compare training 
 
 \section{Data Loading, Preprocessing, and Augmentation}
 
-The dataset is loaded in the training script using the Hugging Face \texttt{datasets} library. The default dataset name is \texttt{abhilash88/fer2013-enhanced}, and the files are cached locally. The same loading function is used for the training, validation, and test splits.
+The dataset is loaded in the training script using the Hugging Face \textit{datasets} library. The default dataset name is \textit{abhilash88/fer2013-enhanced}, and the files are cached locally. The same loading function is used for the training, validation, and test splits.
 
-Before an image is passed to the model, it is converted to RGB. The dataset images are grayscale, while the pretrained MobileNetV2 backbone expects three input channels. The label is read from the \texttt{emotion} field and used as the target class.
+Before an image is passed to the model, it is converted to RGB. The dataset images are grayscale, while the pretrained MobileNetV2 backbone expects three input channels. The label is read from the \textit{emotion} field and used as the target class.
 
 The training script can also limit the samples used in an experiment. A dataset fraction can be selected for shorter runs, and a minimum quality score can be applied to remove low-quality samples. These options make it possible to compare different training settings without modifying the dataset files.
 
@@ -128,9 +128,21 @@ MobileNetV2 was selected because the project is intended to run locally and was 
     \label{tab:backbone-comparison}
 \end{table}
 
-The comparison shows that MobileNetV2 is small, has low computational cost, and still offers reasonable pretrained classification performance. Some alternatives have better ImageNet accuracy, but they also increase parameter count or computation. For this project, MobileNetV2 gives a suitable balance between model size, inference speed, and transfer learning performance.
+The comparison shows that MobileNetV2 is small, has low computational cost, and still offers reasonable pretrained classification performance. Some alternatives have better ImageNet accuracy, but they also increase parameter count or computation. For my project, MobileNetV2 gives a suitable balance between model size, inference speed, and transfer learning performance.
 
 \section{Training Pipeline}
+
+The training pipeline was implemented in PyTorch and all experiments were run on a local machine with an NVIDIA GeForce RTX 4070 Ti GPU with 12 GB of VRAM. This hardware was sufficient for training MobileNetV2 and matched the local execution direction of the application.
+
+Training starts from the ImageNet-pretrained MobileNetV2 weights. The original classifier is replaced with a dropout layer followed by a linear layer with seven outputs, one for each emotion class. The rest of the network is reused as a visual feature extractor.
+
+The pipeline supports two training strategies. In the baseline strategy, the MobileNetV2 feature extractor is frozen and only the new classification head is trained. In the fine-tuning strategy, the model is trained in two stages. First, only the classification head is trained. Then, the last MobileNetV2 blocks are unfrozen and training continues with a smaller learning rate.
+
+The optimizer used in both strategies is AdamW. The loss function is cross-entropy, with optional class weights when class-weighted loss is enabled. These weights are computed from the class distribution of the training split. The scheduler monitors validation macro-F1 and reduces the learning rate when the score stops improving.
+
+After each epoch, the model is evaluated on the validation split. The training loop records loss and accuracy, while validation also computes macro-F1 and per-class precision, recall, and F1-score. The best checkpoint is saved whenever validation macro-F1 improves. Early stopping is used when validation macro-F1 does not improve for several consecutive epochs.
+
+Automatic mixed precision is enabled to reduce memory usage. Gradient clipping is also applied before the optimizer step to keep training stable.
 
 \section{Experimental Strategy and Evaluation Metrics}
 

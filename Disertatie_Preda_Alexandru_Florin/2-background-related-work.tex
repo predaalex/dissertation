@@ -6,7 +6,7 @@ Affective computing is a research area focused on systems that can recognize, in
 
 In real communication, people do not use only words. They also use facial expressions, voice tone, gestures, and context. Because of this, emotion-aware systems may analyze several types of input, such as face images, speech, and text \cite{poria2017review,mobbs2025emotionreview}. This dissertation focuses mainly on facial emotion recognition, while speech is used only as a way of converting the user's voice into text.
 
-Facial Emotion Recognition is the task of predicting a person's apparent emotion from an image or video frame of the face. Common emotion classes include anger, disgust, fear, happiness, sadness, surprise, and neutrality. In this project, the detected facial emotion is not treated as a certain description of the user's real emotional state. Instead, it is used as additional context for the assistant.
+Facial Emotion Recognition is the task of predicting a person's apparent emotion from an image or video frame of the face. Common emotion classes include anger, disgust, fear, happiness, sadness, surprise, and neutrality. In my project, the detected facial emotion is not treated as a certain description of the user's real emotional state. Instead, it is used as additional context for the assistant.
 
 This distinction is important because facial emotion recognition is a difficult task. In practical webcam conditions, predictions can be affected by lighting, camera quality, face position, occlusions, and the ambiguity of facial expressions. Recent surveys also show that performance depends strongly on the dataset, the model architecture, and the evaluation setting \cite{mobbs2025emotionreview}. For this reason, the assistant uses the predicted emotion as a soft signal, not as a rule that controls the direction of generated answer.
 
@@ -29,4 +29,3 @@ For speech-to-text, one of the most widely used open-source options is Whisper, 
 For response generation, large language model families provide versions that can be executed locally. Examples include Llama, Gemma, Mistral, Qwen, and Phi \cite{touvron2023llama2,gemma2024,jiang2023mistral}. Tools such as Ollama simplify local deployment by downloading models, exposing them through a local API, and handling inference on the user's machine.
 
 There are also local libraries and frameworks for computer vision tasks. PyTorch and torchvision are commonly used for training and running neural networks, while OpenCV is often used for webcam access, face detection, frame processing, and image manipulation. These tools provide the basic building blocks required for applications that combine speech, language, and vision on the same device.
-
