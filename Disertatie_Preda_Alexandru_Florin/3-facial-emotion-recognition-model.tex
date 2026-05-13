@@ -144,10 +144,147 @@ After each epoch, the model is evaluated on the validation split. The training l
 
 Automatic mixed precision is enabled to reduce memory usage. Gradient clipping is also applied before the optimizer step to keep training stable.
 
-\section{Experimental Strategy and Evaluation Metrics}
+\section{Experimental Strategy, Evaluation, and Model Selection}
 
-\section{Experiment Tracking with Weights and Biases}
+To determine the best performing model, training was split into multiple sections. The first goal was to choose a good strategy for class imbalance. The second goal was to check whether filtering low-quality samples improves the model. After these two decisions, I used the selected settings in hyperparameter sweeps for baseline training and fine-tuning.
 
-\section{Results and Selected Model}
+The main metric used for model selection was validation macro-F1. Accuracy was also recorded, but macro-F1 was more important because the dataset is imbalanced. A model can obtain a good accuracy by performing well on frequent classes, while macro-F1 gives equal importance to each class.
+
+\subsection{Comparing Imbalance Tactics}
+
+The first comparison used the same training parameters and changed only the imbalance strategy. The experiment was run on a dataset fraction of 0.2, so the comparison could be completed faster. The three tested strategies were no imbalance handling, class-weighted loss, and weighted sampling.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrr}
+        \hline
+        Imbalance strategy & Validation macro-F1 & Validation accuracy \\
+        \hline
+        None & 0.0000 & 0.0000 \\
+        Class-weighted loss & \textbf{0.0000} & \textbf{0.0000} \\
+        Weighted sampler & 0.0000 & 0.0000 \\
+        \hline
+    \end{tabular}
+    \caption{Comparison of imbalance handling strategies.}
+    \label{tab:imbalance-strategy-comparison}
+\end{table}
+
+The best strategy from this comparison was used in the following experiments. This kept the later sweeps focused on model and training hyperparameters instead of repeating the same imbalance decision.
+
+\subsection{Comparing Quality Filtering}
+
+The second comparison used the same training parameters and changed only the minimum quality score. The tested values were no quality filtering, 0.35, and 0.5. This comparison was also run with a dataset fraction of 0.2.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrrr}
+        \hline
+        Minimum quality score & Remaining data & Validation macro-F1 & Validation accuracy \\
+        \hline
+        No threshold & 100.0\% & 0.0000 & 0.0000 \\
+        0.35 & 86.3\% & \textbf{0.0000} & \textbf{0.0000} \\
+        0.50 & 20.9\% & 0.0000 & 0.0000 \\
+        \hline
+    \end{tabular}
+    \caption{Comparison of quality score filtering thresholds.}
+    \label{tab:quality-filtering-comparison}
+\end{table}
+
+The purpose of this step was to measure whether removing lower-quality samples helps more than it hurts. A stricter threshold can make the data cleaner, but it also removes many training examples.
+
+\subsection{Baseline Sweep}
+
+After choosing the imbalance and quality filtering settings, I ran a baseline sweep on the full dataset. In this sweep, the MobileNetV2 feature extractor remained frozen and only the classifier head was trained. The sweep used Bayesian search and optimized validation macro-F1.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{p{0.35\textwidth}p{0.55\textwidth}}
+        \hline
+        Hyperparameter & Values \\
+        \hline
+        Batch size & 32, 64 \\
+        Learning rate & 1e-4, 3e-4, 5e-4 \\
+        Weight decay & 1e-5, 1e-4, 1e-3 \\
+        Dropout & 0.2, 0.3 \\
+        Label smoothing & 0.0, 0.05, 0.1 \\
+        Gradient clipping & 0.5, 1.0, 2.0 \\
+        Epoch limit & 100 \\
+        Early stopping patience & 3 \\
+        \hline
+    \end{tabular}
+    \caption{Hyperparameters used in the baseline sweep.}
+    \label{tab:baseline-sweep-hyperparameters}
+\end{table}
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrr}
+        \hline
+        Model & Validation macro-F1 & Validation accuracy \\
+        \hline
+        Best baseline model & \textbf{0.0000} & \textbf{0.0000} \\
+        \hline
+    \end{tabular}
+    \caption{Best result obtained in the baseline sweep.}
+    \label{tab:best-baseline-result}
+\end{table}
+
+\subsection{Fine-Tuning Sweep}
+
+The fine-tuning sweep used the same selected imbalance and quality filtering settings, but trained more of the network. The model first trained the classifier head, then unfroze later MobileNetV2 blocks and continued training. This sweep also used the full dataset and optimized validation macro-F1.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{p{0.35\textwidth}p{0.55\textwidth}}
+        \hline
+        Hyperparameter & Values \\
+        \hline
+        Batch size & 32, 64 \\
+        Head learning rate & 1e-4, 3e-4, 5e-4 \\
+        Head weight decay & 1e-5, 1e-4 \\
+        Fine-tune learning rate & 5e-4, 1e-5, 3e-5, 5e-5 \\
+        Fine-tune weight decay & 1e-5, 1e-4, 1e-3 \\
+        Unfreeze from block & 12, 14, 16, 26 \\
+        Dropout & 0.2, 0.3 \\
+        Label smoothing & 0.0, 0.05 \\
+        Gradient clipping & 0.5, 1.0, 2.0 \\
+        Head epoch limit & 100 \\
+        Fine-tune epoch limit & 100 \\
+        Early stopping patience & 3 \\
+        \hline
+    \end{tabular}
+    \caption{Hyperparameters used in the fine-tuning sweep.}
+    \label{tab:finetune-sweep-hyperparameters}
+\end{table}
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrr}
+        \hline
+        Model & Validation macro-F1 & Validation accuracy \\
+        \hline
+        Best fine-tuned model & \textbf{0.0000} & \textbf{0.0000} \\
+        \hline
+    \end{tabular}
+    \caption{Best result obtained in the fine-tuning sweep.}
+    \label{tab:best-finetune-result}
+\end{table}
+
+\subsection{Selected Model}
+
+The selected model is the checkpoint with the best validation macro-F1 after comparing the baseline and fine-tuning sweeps. The final model is then evaluated on the test split, which was not used for selecting hyperparameters.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrrr}
+        \hline
+        Selected model & Validation macro-F1 & Test macro-F1 & Test accuracy \\
+        \hline
+        Final checkpoint & \textbf{0.0000} & \textbf{0.0000} & \textbf{0.0000} \\
+        \hline
+    \end{tabular}
+    \caption{Final selected model performance.}
+    \label{tab:selected-model-performance}
+\end{table}
 
 \section{Limitations of the Emotion Model}
