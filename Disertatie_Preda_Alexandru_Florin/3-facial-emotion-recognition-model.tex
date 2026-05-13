@@ -1,39 +1,141 @@
 \chapter{Facial Emotion Recognition Model}
 
-\section{Dataset Description}
+\section{Dataset Description: FER2013 Enhanced}
 
-\section{Data Preprocessing and Augmentation}
+The facial emotion recognition model was trained using FER2013 Enhanced, available on Hugging Face as \texttt{abhilash88/fer2013-enhanced} \cite{fer2013_enhanced_2025}. This dataset is based on the original FER2013 dataset, which was introduced in the Challenges in Representation Learning competition \cite{goodfellow2015challenges}. Instead of using the original FER2013 files directly, this project uses the enhanced version because it already provides dataset splits and extra information that is useful during training.
 
-\section{Class Distribution and Class Imbalance}
+FER2013 Enhanced contains 35,887 grayscale face images. Each image has a resolution of 48x48 pixels and is labeled with one of seven emotion classes: angry, disgust, fear, happy, sad, surprise, and neutral. The dataset is already split into training, validation, and test sets. The split sizes are shown in Table~\ref{tab:fer2013-enhanced-splits}.
 
-\section{Imbalance Handling and Quality Filtering}
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrr}
+        \hline
+        Split & Number of images & Percentage \\
+        \hline
+        Train & 25,117 & 70.0\% \\
+        Validation & 5,380 & 15.0\% \\
+        Test & 5,390 & 15.0\% \\
+        \hline
+        Total & 35,887 & 100.0\% \\
+        \hline
+    \end{tabular}
+    \caption{FER2013 Enhanced dataset split sizes.}
+    \label{tab:fer2013-enhanced-splits}
+\end{table}
 
-\subsection{Imbalance Tactics}
+The dataset is not balanced across classes, as shown in Figure~\ref{fig:fer2013-enhanced-overview}. The happy class has the largest number of samples, while disgust has far fewer samples than the other classes. This matters because a model trained directly on an imbalanced dataset can learn to prefer the larger classes. For this reason, class imbalance is considered during the experimental process.
 
-\subsection{Quality Filtering}
+FER2013 Enhanced also provides a quality score for each image. This score is computed from four image properties: edge content, contrast, focus or sharpness, and brightness balance. Edge content and contrast each contribute 30\% of the score, focus contributes 25\%, and brightness balance contributes 15\%. The quality score distribution is also shown in Figure~\ref{fig:fer2013-enhanced-overview}.
+
+\begin{figure}[h]
+    \centering
+
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{fer2013_enhanced_class_distribution.png}
+
+        \small (a) Distribution of samples per emotion class.
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{fer2013_enhanced_quality_distribution.png}
+
+        \small (b) Distribution of image quality scores.
+    \end{minipage}
+
+    \caption{Dataset overview for FER2013 Enhanced.}
+    \label{fig:fer2013-enhanced-overview}
+\end{figure}
+
+The quality score is useful because it allows experiments that compare training on all samples with training only on samples above a minimum quality threshold. The experiments use two filtering thresholds, 0.35 and 0.5. The threshold 0.35 is a permissive filter that removes the weakest images while keeping most of the dataset. The threshold 0.5 is stricter and tests whether training on cleaner images can improve the model, even if fewer samples remain. These thresholds are not treated as fixed rules for the dataset. They are used to measure the trade-off between data quantity and data quality. Table~\ref{tab:quality-threshold-retention} shows how many samples remain after each threshold.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrrrrr}
+        \hline
+        Quality threshold & Train & Validation & Test & Total & Kept \\
+        \hline
+        No threshold & 25,117 & 5,380 & 5,390 & 35,887 & 100.0\% \\
+        0.35 & 21,686 & 4,648 & 4,621 & 30,955 & 86.3\% \\
+        0.50 & 5,245 & 1,150 & 1,107 & 7,502 & 20.9\% \\
+        \hline
+    \end{tabular}
+    \caption{Number of samples kept after applying quality score filtering.}
+    \label{tab:quality-threshold-retention}
+\end{table}
+
+
+\section{Data Loading, Preprocessing, and Augmentation}
+
+The dataset is loaded in the training script using the Hugging Face \texttt{datasets} library. The default dataset name is \texttt{abhilash88/fer2013-enhanced}, and the files are cached locally. The same loading function is used for the training, validation, and test splits.
+
+Before an image is passed to the model, it is converted to RGB. The dataset images are grayscale, while the pretrained MobileNetV2 backbone expects three input channels. The label is read from the \texttt{emotion} field and used as the target class.
+
+The training script can also limit the samples used in an experiment. A dataset fraction can be selected for shorter runs, and a minimum quality score can be applied to remove low-quality samples. These options make it possible to compare different training settings without modifying the dataset files.
+
+Different image transformations are used for training and evaluation, as shown in Table~\ref{tab:image-transforms}. The training split uses random crop, horizontal flip, and rotation. The validation and test splits use deterministic transformations, so reported metrics are not affected by random input changes.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{llll}
+        \hline
+        Step & Training & Validation \& Test \\
+        \hline
+        Resize & 232x232 & 232x232 \\
+        Crop & Random 224x224 & Center 224x224 \\
+        Horizontal flip & Yes & No \\
+        Rotation & Up to 10 degrees & No \\
+        Tensor conversion & Yes & Yes \\
+        Normalization & ImageNet stats & ImageNet stats \\
+        \hline
+    \end{tabular}
+    \caption{Image transformations used during training and evaluation.}
+    \label{tab:image-transforms}
+\end{table}
+
+The random transformations are applied only during training. Validation and test images are processed with the same fixed resize, crop, tensor conversion, and normalization steps in every run.
 
 \section{Model Architecture}
 
-\section{Training Strategy}
+The classifier uses MobileNetV2 as the backbone. MobileNetV2 was designed as a lightweight convolutional neural network for mobile and resource-limited environments. Its main contribution is the use of inverted residual blocks with linear bottlenecks, combined with depthwise separable convolutions \cite{sandler2018mobilenetv2}. This design reduces the number of operations while keeping good classification performance.
 
-\subsection{Baseline Training}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{MobileNetV2_architecture_overview.png}
+    \caption{MobileNetV2 architecture overview.}
+    \label{fig:mobilenetv2-architecture}
+\end{figure}
 
-\subsection{Fine-Tuning}
+MobileNetV2 was selected because the project is intended to run locally and was trained on a single GPU. The model is also used for live webcam classification, so inference speed is important. The assistant has other local components, such as speech-to-text and LLM inference, so the emotion model should not be unnecessarily large. TorchVision reports MobileNetV2 with 3.5M parameters and 0.30 GFLOPS for ImageNet inference \cite{torchvision_models}. Table~\ref{tab:backbone-comparison} shows several possible backbones with similar or commonly used sizes.
 
-\section{Experimental Procedure}
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrrrr}
+        \hline
+        Model & Acc@1 & Acc@5 & Params & GFLOPS \\
+        \hline
+        MobileNetV3 Small & 67.668 & 87.402 & 2.5M & 0.06 \\
+        MobileNetV2 & 72.154 & 90.822 & 3.5M & 0.30 \\
+        ShuffleNetV2 x1.5 & 72.996 & 91.086 & 3.5M & 0.30 \\
+        MNASNet 1.0 & 73.456 & 91.510 & 4.4M & 0.31 \\
+        EfficientNet B0 & 77.692 & 93.532 & 5.3M & 0.39 \\
+        MobileNetV3 Large & 75.274 & 92.566 & 5.5M & 0.22 \\
+        ResNet18 & 69.758 & 89.078 & 11.7M & 1.81 \\
+        \hline
+    \end{tabular}
+    \caption{TorchVision ImageNet-1K metrics for candidate lightweight backbones.}
+    \label{tab:backbone-comparison}
+\end{table}
 
-\subsection{Comparing Imbalance Tactics}
+The comparison shows that MobileNetV2 is small, has low computational cost, and still offers reasonable pretrained classification performance. Some alternatives have better ImageNet accuracy, but they also increase parameter count or computation. For this project, MobileNetV2 gives a suitable balance between model size, inference speed, and transfer learning performance.
 
-\subsection{Comparing Quality Filtering}
+\section{Training Pipeline}
 
-\subsection{Baseline Sweep with Selected Settings}
+\section{Experimental Strategy and Evaluation Metrics}
 
-\subsection{Fine-Tune Sweep with Selected Settings}
+\section{Experiment Tracking with Weights and Biases}
 
-\subsection{Final Model Selection}
-
-\section{Evaluation Metrics}
-
-\section{Results and Model Selection}
+\section{Results and Selected Model}
 
 \section{Limitations of the Emotion Model}
