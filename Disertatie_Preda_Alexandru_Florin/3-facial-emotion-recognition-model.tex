@@ -160,9 +160,9 @@ The first comparison used the same training parameters and changed only the imba
         \hline
         Imbalance strategy & Validation macro-F1 & Validation accuracy \\
         \hline
-        None & 0.0000 & 0.0000 \\
-        Class-weighted loss & \textbf{0.0000} & \textbf{0.0000} \\
-        Weighted sampler & 0.0000 & 0.0000 \\
+        None & 16.82 & 29.27 \\
+        Weighted sampler & 23.16 & 30.94 \\
+        Class-weighted loss & \textbf{24.07} & 26.20 \\
         \hline
     \end{tabular}
     \caption{Comparison of imbalance handling strategies.}
@@ -181,9 +181,9 @@ The second comparison used the same training parameters and changed only the min
         \hline
         Minimum quality score & Remaining data & Validation macro-F1 & Validation accuracy \\
         \hline
-        No threshold & 100.0\% & 0.0000 & 0.0000 \\
-        0.35 & 86.3\% & \textbf{0.0000} & \textbf{0.0000} \\
-        0.50 & 20.9\% & 0.0000 & 0.0000 \\
+        0.50 & 20.9\% & 20.04 & 25.65 \\
+        0.35 & 86.3\% & 24.96 & 31.32 \\
+        No threshold & 100.0\% & \textbf{27.02} & \textbf{31.97} \\
         \hline
     \end{tabular}
     \caption{Comparison of quality score filtering thresholds.}
@@ -192,99 +192,102 @@ The second comparison used the same training parameters and changed only the min
 
 The purpose of this step was to measure whether removing lower-quality samples helps more than it hurts. A stricter threshold can make the data cleaner, but it also removes many training examples.
 
-\subsection{Baseline Sweep}
+\subsection{Baseline and Fine-Tuning Sweeps}
 
-After choosing the imbalance and quality filtering settings, I ran a baseline sweep on the full dataset. In this sweep, the MobileNetV2 feature extractor remained frozen and only the classifier head was trained. The sweep used Bayesian search and optimized validation macro-F1.
-
-\begin{table}[h]
-    \centering
-    \begin{tabular}{p{0.35\textwidth}p{0.55\textwidth}}
-        \hline
-        Hyperparameter & Values \\
-        \hline
-        Batch size & 32, 64 \\
-        Learning rate & 1e-4, 3e-4, 5e-4 \\
-        Weight decay & 1e-5, 1e-4, 1e-3 \\
-        Dropout & 0.2, 0.3 \\
-        Label smoothing & 0.0, 0.05, 0.1 \\
-        Gradient clipping & 0.5, 1.0, 2.0 \\
-        Epoch limit & 100 \\
-        Early stopping patience & 3 \\
-        \hline
-    \end{tabular}
-    \caption{Hyperparameters used in the baseline sweep.}
-    \label{tab:baseline-sweep-hyperparameters}
-\end{table}
+After choosing the imbalance and quality filtering settings, I ran two hyperparameter sweeps on the full dataset. Both sweeps used Bayesian search and optimized validation macro-F1. The search spaces are shown side by side in Table~\ref{tab:sweep-hyperparameters-comparison}.
 
 \begin{table}[h]
     \centering
-    \begin{tabular}{lrr}
-        \hline
-        Model & Validation macro-F1 & Validation accuracy \\
-        \hline
-        Best baseline model & \textbf{0.0000} & \textbf{0.0000} \\
-        \hline
-    \end{tabular}
-    \caption{Best result obtained in the baseline sweep.}
-    \label{tab:best-baseline-result}
+    \small
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \begin{tabular}{ll}
+            \hline
+            \multicolumn{2}{c}{Baseline sweep} \\
+            \hline
+            Trainable layers & Classifier head \\
+            Batch size & 32, 64 \\
+            Learning rate & 1e-4, 3e-4, 5e-4 \\
+            Weight decay & 1e-5, 1e-4, 1e-3 \\
+            Dropout & 0.2, 0.3 \\
+            Label smoothing & 0.0, 0.05, 0.1 \\
+            Gradient clipping & 0.5, 1.0, 2.0 \\
+            Epoch limit & 100 \\
+            Early stopping & 3 \\
+            \hline
+        \end{tabular}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \begin{tabular}{ll}
+            \hline
+            \multicolumn{2}{c}{Fine-tuning sweep} \\
+            \hline
+            Trainable layers & Head, then backbone \\
+            Batch size & 32, 64 \\
+            Head LR & 1e-4, 3e-4, 5e-4 \\
+            Head weight decay & 1e-5, 1e-4 \\
+            Fine-tune LR & 5e-4, 1e-5, 3e-5, 5e-5 \\
+            Fine-tune weight decay & 1e-5, 1e-4, 1e-3 \\
+            Unfreeze block & 12, 14, 16, 26 \\
+            Dropout & 0.2, 0.3 \\
+            Label smoothing & 0.0, 0.05 \\
+            Gradient clipping & 0.5, 1.0, 2.0 \\
+            Epoch limit & Head: 100; fine-tune: 100 \\
+            Early stopping & 3 \\
+            \hline
+        \end{tabular}
+    \end{minipage}
+    \caption{Hyperparameter search space for the baseline and fine-tuning sweeps.}
+    \label{tab:sweep-hyperparameters-comparison}
 \end{table}
 
-\subsection{Fine-Tuning Sweep}
+In the baseline sweep, the MobileNetV2 feature extractor remained frozen and only the classifier head was trained. This made the experiment faster and gave a reference point for how much performance could be obtained from the pretrained features without changing the convolutional backbone. As shown in Table~\ref{tab:sweep-hyperparameters-comparison}, this sweep focused on the classifier head learning rate, weight decay, dropout, label smoothing, gradient clipping, and batch size.
 
-The fine-tuning sweep used the same selected imbalance and quality filtering settings, but trained more of the network. The model first trained the classifier head, then unfroze later MobileNetV2 blocks and continued training. This sweep also used the full dataset and optimized validation macro-F1.
-
-\begin{table}[h]
-    \centering
-    \begin{tabular}{p{0.35\textwidth}p{0.55\textwidth}}
-        \hline
-        Hyperparameter & Values \\
-        \hline
-        Batch size & 32, 64 \\
-        Head learning rate & 1e-4, 3e-4, 5e-4 \\
-        Head weight decay & 1e-5, 1e-4 \\
-        Fine-tune learning rate & 5e-4, 1e-5, 3e-5, 5e-5 \\
-        Fine-tune weight decay & 1e-5, 1e-4, 1e-3 \\
-        Unfreeze from block & 12, 14, 16, 26 \\
-        Dropout & 0.2, 0.3 \\
-        Label smoothing & 0.0, 0.05 \\
-        Gradient clipping & 0.5, 1.0, 2.0 \\
-        Head epoch limit & 100 \\
-        Fine-tune epoch limit & 100 \\
-        Early stopping patience & 3 \\
-        \hline
-    \end{tabular}
-    \caption{Hyperparameters used in the fine-tuning sweep.}
-    \label{tab:finetune-sweep-hyperparameters}
-\end{table}
-
-\begin{table}[h]
-    \centering
-    \begin{tabular}{lrr}
-        \hline
-        Model & Validation macro-F1 & Validation accuracy \\
-        \hline
-        Best fine-tuned model & \textbf{0.0000} & \textbf{0.0000} \\
-        \hline
-    \end{tabular}
-    \caption{Best result obtained in the fine-tuning sweep.}
-    \label{tab:best-finetune-result}
-\end{table}
+In the fine-tuning sweep, the model was trained in two stages. The classifier head was trained first, then later MobileNetV2 blocks were unfrozen and training continued. This sweep used the same general search setup as the baseline sweep, but also included fine-tuning-specific choices such as the fine-tune learning rate, fine-tune weight decay, and the block from which the backbone was unfrozen.
 
 \subsection{Selected Model}
 
-The selected model is the checkpoint with the best validation macro-F1 after comparing the baseline and fine-tuning sweeps. The final model is then evaluated on the test split, which was not used for selecting hyperparameters.
+The selected model is the checkpoint with the best validation macro-F1 after comparing the baseline and fine-tuning sweeps. The test split was used only after the model was selected. On this split, the model obtained a test macro-F1 of 66.05\% and a test accuracy of 67.42\%.
+
+Table~\ref{tab:fer2013-prior-methods-comparison} places this result next to FER-2013 results reported by Naik et al. \cite{naik2026efficientnetb2}. The selected MobileNetV2 model is slightly above the reported VGG16 result, while using far fewer parameters. It does not reach the accuracy of the EfficientNetB2 model from the cited paper, but it keeps the model smaller, which is important for local real-time use.
 
 \begin{table}[h]
     \centering
-    \begin{tabular}{lrrr}
+    \begin{tabular}{lrrl}
         \hline
-        Selected model & Validation macro-F1 & Test macro-F1 & Test accuracy \\
+        Model & Accuracy (\%) & Params (M) & Source \\
         \hline
-        Final checkpoint & \textbf{0.0000} & \textbf{0.0000} & \textbf{0.0000} \\
+        VGG16 (trained from scratch) & 67.23 & 138 & Naik et al. \\
+        EfficientNet (prior reports) & 58--65 & 4--20 & Naik et al. \\
+        EfficientNetB2 & 68.78 & 9.2 & Naik et al. \\
+        MobileNetV2 (selected model) & \textbf{67.42} & \textbf{2.2} & My project \\
         \hline
     \end{tabular}
-    \caption{Final selected model performance.}
-    \label{tab:selected-model-performance}
+    \caption{Comparison with prior FER-2013 methods, adapted from Naik et al. \cite{naik2026efficientnetb2}, with my selected model added.}
+    \label{tab:fer2013-prior-methods-comparison}
 \end{table}
 
-\section{Limitations of the Emotion Model}
+Figure~\ref{fig:selected-model-statistics} gives a more detailed view of the selected model. The training graph shows the evolution of loss and accuracy for both the training and validation splits. In later epochs, the training curves keep improving while the validation curves change more slowly, which shows why the selected checkpoint should be based on validation performance rather than on the final epoch alone. The confusion matrix adds the class-level view: the model performs better on clearer expressions such as happy and surprise, while classes such as fear, sad, and angry remain harder to separate.
+
+\begin{figure}[h]
+    \centering
+
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{selected_model_graph.png}
+
+        \small (a) Loss and accuracy progression.
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{selected_model_confusion_matrix.png}
+
+        \small (b) Test confusion matrix.
+    \end{minipage}
+
+    \caption{Additional statistics for the selected MobileNetV2 model.}
+    \label{fig:selected-model-statistics}
+\end{figure}
