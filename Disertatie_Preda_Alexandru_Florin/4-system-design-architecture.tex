@@ -1,21 +1,66 @@
 \chapter{System Design and Architecture}
 
-\section{System Requirements}
+This chapter describes the architecture of the emotion-aware desktop AI assistant and the FastAPI backend endpoints that connect the main components. The architecture includes the interface, the backend API, the session state, the facial emotion recognition model, the speech-to-text service and the local LLM service.
 
-\section{High-Level Architecture}
+\section{System Architecture and Backend API Design}
 
-\section{Backend API Design}
+The implemented system is build as a modular architecture, that can be easily split into microservices. The desktop interface is responsible for the interaction with the user, while the backend is processing all the necessary information. The backend is composed of API endpoints capable of creating a session, send user's text, upload audio, send webcam images, and receive assistant's response.
 
-\section{Session and Emotion State Management}
+This system design keeps the functionality of each component simple and easy to test and maintain. Each component is independent of each other, therefore most of them can be disabled or replaced with better performing models.
 
-\section{Webcam Emotion Integration}
+Another advantage of this architecture is that it is easy to integrate new capabilities by creating a separate endpoint that can be easily integrated in the Prompt Construction Service and increase the functionality of the AI assistant with new information making it aware of other aspects and enhance the interaction with the user.
 
-\section{Speech-to-Text Integration}
+The conversation between AI assistant and user is streamed. When the assistant generates an answer, it is gradually send back to the desktop interface making the interaction feel more natural, because the user can read the answer while it is generated and doesn't have to wait for the entire answer to be completed before seeing it.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{high-level_architecture.png}
+    \caption{High-level architecture of the emotion-aware desktop assistant.}
+    \label{fig:system-architecture}
+\end{figure}
+
+\section{Session Service and Emotion State Management}
+
+The Session Service keeps the state of the interaction between the user and the AI assistant. When a new conversation starts, the backend creates a new session and returns a unique session identifier. This identifier is then used by the desktop interface for the following requests.
+
+Each session stores the conversation history, the current emotion state, and a short history of accepted emotion predictions. The conversation history contains both user messages and assistant responses. The emotion history contains recent emotion labels together with their confidence values and update time.
+
+The current emotion state is not always the last detected emotion. The backend keeps a limited window of recent accepted predictions and chooses the majority emotion from this window. If two emotions have the same number of votes, the most recent one is used. A confidence threshold can also reject weak predictions before they are added to the emotion history. This makes the emotion state more stable, because a single noisy frame should not immediately change the context used by the assistant.
+
+\section{Facial Emotion Recognition Service}
+
+The Facial Emotion Recognition Service receives image frames from the client side. The webcam is handled by the desktop interface, while the backend only receives the captured frames. The image is processed by the backend and the service returns one of the supported emotion classes, together with the confidence value and the prediction probability for each class.
+
+The emotion service uses the presented model in Chapter \ref{Chapter 3} for classification. Before the image is sent to the classification model, the backend can apply face detection using OpenCV. If face cropping is enabled and a face is detected, the largest face from the image is cropped and used as model input. If no face is detected, the original image is used instead.
+
+This face detection step was added so that the image sent to the classification model is mostly occupied by the user's face, similar to the training dataset. The response also includes face detection metadata, such as if a face was detected, if the crop was applied and the face bounding box. When the session endpoint is used, the predicted emotion is cached in the current session, so the assistant can use it later during response generation.
+
+\section{Speech-to-Text Service}
+
+The Speech-to-Text Service handles the voice input of the user. In the desktop interface, microphone input is recorded in short intervals. Each audio segment is sent to the backend and transcribed, so the user can see text while speaking, similar to a streamed connection.
+
+The service uses a Whisper model for transcription. The model size and language can be configured from the backend settings. For each received audio segment, the backend calls the transcription component and returns the transcribed text.
+
+At the end of the interaction, the transcribed text is send to the LLM, and it is processed in the same way the typed text is.
 
 \section{LLM Integration and Prompt Construction}
 
-\section{Real-Time Response Streaming}
+The assistant response is generated by  local LLM served through Ollama. Before calling the model, the backend builds a prompt from the final user message, the recent conversation history, and the latest emotion stored in the current session.
+
+The user message can come directly from text input or from the speech-to-text transcript. The prompt explicitly states that this emotion should be treated as soft context, not as a certain description of the user's real emotional state.
+
+The recent conversation is also added to the prompt, with each message marked by its role. This gives the model enough context to continue the interaction without storing an unlimited conversation history.
+
+After the prompt is built, it is sent to Ollama through the backend LLM service. Ollama handles the local model inference and returns the generated answer as a stream, which is then handled by the desktop interface.
 
 \section{End-to-End Interaction Flow}
 
-\section{Testing and Validation}
+The interaction starts with the creation of a session. The desktop interface calls the session endpoint, receives the session identifier and uses it for the rest of the conversation.
+
+After the session is created, the desktop interface starts pooling camera images and sends them to the backend. These images are processed by the Facial Emotion Recognition Service and the predicted emotion is stored in the session.
+
+When user wants to interact with the AI assistant via text, the backend uses it directly. When user sends an audio message, it is first transcribed by the  Speech-to-Text Service, then it becomes the user input.
+
+After the user input is prepared, the prompt is build using text, conversation history and latest emotion state, then it is sent to the Ollama LLM Service. The generated response is streamed back the the desktop interface while it is being produced.
+
+At the end of the response, the backend updates the conversation history of the session, making it available for the next interaction.
