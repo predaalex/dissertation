@@ -25,9 +25,9 @@ The main goal of this dissertation is to design, implement, and evaluate an emot
 
 To achieve this, I developed a modular architecture based on a FastAPI backend. The backend exposes separate endpoints for session management, emotion prediction, speech transcription, and assistant response generation. This separation makes the system easier to test, extend, and connect to different user interfaces.
 
-The main contribution of the project is the facial emotion recognition component. I implemented a PyTorch training pipeline based on a MobileNetV2 model and trained it on a public facial expression dataset. The pipeline includes preprocessing, image transformations, class imbalance handling, checkpoint saving, metric logging, and model evaluation.
+The main contribution of the project is the facial emotion recognition component. I implemented a PyTorch training pipeline based on MobileNetV2 and trained the model on a public facial expression dataset. The pipeline contains the full training process, from preparing the images and handling class imbalance, to saving the trained model and evaluating its performance.
 
-The experimental part of the dissertation compares multiple training decisions. I first evaluated different strategies for handling class imbalance, then analyzed the effect of image quality filtering. Based on these results, I ran hyperparameter sweeps for both baseline and fine-tuned models, selected the best-performing configuration, and trained the final model on the full dataset.
+The experimental part of the dissertation focuses on finding the best training setup for the emotion recognition model. I started by testing how class imbalance should be handled, then checked how image quality filtering affects the results. After that, I used the findings to tune the model parameters, compare baseline and fine-tuned versions, and train the final model on the full dataset.
 
 Another contribution is the integration of the trained emotion model into the assistant workflow. The webcam feed is processed periodically, the predicted emotion is stored in the current session, and this emotional context is inserted into the prompt sent to the local LLM. The system treats the predicted emotion as a soft signal, not as a certain representation of the user's real emotional state.
 
@@ -37,16 +37,12 @@ Overall, the project combines machine learning experimentation with the implemen
 
 \section{Structure of the Thesis}
 
-The thesis is organized into the following chapters:
+The thesis starts with an introduction to the project and to the motivation behind it. This first chapter explains why emotion-aware interaction can be useful for AI assistants, what problem the dissertation addresses, and what I wanted to achieve through the implementation.
 
-\begin{enumerate}
-    \item \textbf{Introduction} -- presents the motivation for choosing this topic, the problem addressed by the dissertation, and the main objectives and personal contributions.
+The second chapter presents the background needed to understand the project. It introduces affective computing and facial emotion recognition, then discusses public datasets used for this task. It also presents existing tools that can be used for building local AI assistants, such as speech-to-text models, local language models, and computer vision libraries.
 
-    \item \textbf{Background and Related Work} -- introduces the concepts needed to understand the project, including affective computing, facial emotion recognition, public datasets for facial emotion recognition, and existing components used for local AI assistants.
+The third chapter focuses on the facial emotion recognition model. It describes the dataset used for training, the preprocessing steps, the MobileNetV2 architecture, and the training pipeline. This chapter also presents the experiments used for selecting the final model, including the comparison of imbalance handling methods, quality filtering, baseline training, and fine-tuning.
 
-    \item \textbf{Facial Emotion Recognition Model} -- describes the dataset, preprocessing steps, MobileNetV2 model architecture, training pipeline, experimental strategy, and final model selection.
+The fourth chapter presents the system design and architecture of the final application. It explains how the desktop interface, FastAPI backend, session management, emotion recognition service, speech-to-text service, prompt construction, and local LLM are connected in the full assistant workflow.
 
-    \item \textbf{System Design and Architecture} -- presents the implemented assistant architecture, including the FastAPI backend, session and emotion state management, webcam emotion integration, speech-to-text integration, prompt construction, LLM response generation, and the end-to-end interaction flow.
-
-    \item \textbf{Conclusions and Future Work} -- summarizes the dissertation, discusses the main results and limitations, and presents possible directions for future development.
-\end{enumerate}
+The final chapter summarizes the work done in the dissertation and presents the main conclusions. It also discusses the limitations of the current implementation and possible directions for improving the system in the future.
