@@ -1,11 +1,23 @@
 \chapter{Conclusions and Future Work}
 
-\section{Summary of the Dissertation}
+This dissertation thesis presented an emotion-aware desktop AI assistant that combines facial emotion recognition, text and voice interaction, local LLM inference, and session-based conversation context. The goal was not only to train an emotion classifier, but to integrate it into a complete assistant workflow.
 
-\section{Main Contributions}
+The first contribution is the design and implementation of the assistant architecture. I built a modular backend with separate services for sessions, emotion prediction, speechto-text, prompt construction, local LLM communication, and response streaming. This structure keeps each component clear and makes the system easier to extend and test
 
-\section{Conclusions from the Experiments}
+The second contribution is the way facial emotion is used within the interaction. The assistant does not treat the prediction as a certain description of the user's real emotion. Instead, the detected emotion is stored in the session and added to the prompt as soft context.
 
-\section{Limitations}
+The main machine learning contribution is the facial emotion recognition model. I trained and evaluated a MobileNetV2-based classifier on FER2013 Enhanced, compared imbalance handling strategies, tested quality filtering, and ran hyperparameter sweeps. The final selected model provides solid results for facial emotion recognition while remaining lightweight enough to be used locally in a real-time desktop application.
 
-\section{Future Work}
+The experiments show that model size and performance can be balanced for this type of application. A larger model could improve accuracy, but it would also increase the cost of running the assistant locally. For my project, MobileNetV2 offered a good compromise between accuracy, inference speed, and resource usage.
+
+There are still some limitations. A facial expression can be ambiguous, missing, or unrelated to what the user actually feels. For this reason, the detected emotion should remain only an additional signal. Another limitation for the model is the dataset. FER2013-style images are low resolution and can contain noisy labels. The classes are not perfectly balanced, and some emotions are harder to separate. In read world scenario, the model can also be affected by lighting, camera quality, face angle, occlusion, and distance from the camera.
+
+Future work could improve the emotion model by training on larger and better datasets, such as AffectNet. Another direction is to use temporal information from several consecutive frames instead of classifying each frame independently.
+
+Future work could improve the emotion recognition component by training and evaluating it on larger and more diverse datasets, such as AffectNet. The current system classifies each image frame independently, so another possible improvement would be to use information from several consecutive frames.
+
+The assistant could also be extended with additional emotional signals. For example, speech emotion recognition and text sentiment analysis could be added together with facial emotion recognition. This would allow the assistant to build a richer multimodal context from the user's voice, facial expression and written or spoken message.
+
+On the system side, future work could focus on packaging the backend and interface into a complete desktop application. The local configuration could also be improved, allowing the user to choose the LLM or speech-to-text model
+
+Overall, the dissertation shows that facial emotion recognition can be connected to a local AI assistant in a practical way. The result is a working foundation for an assistant that uses emotion as context while keeping the main processing on the user's machine.

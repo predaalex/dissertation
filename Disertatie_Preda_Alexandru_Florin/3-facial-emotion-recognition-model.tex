@@ -3,9 +3,9 @@
 
 \section{Dataset Description: FER2013 Enhanced}
 
-The facial emotion recognition model was trained using FER2013 Enhanced, available on Hugging Face as \textit{abhilash88/fer2013-enhanced} \cite{fer2013_enhanced_2025}. This dataset is based on the original FER2013 dataset, which was introduced in the Challenges in Representation Learning competition \cite{goodfellow2015challenges}. Instead of using the original FER2013 files directly, my project uses the enhanced version because it already provides dataset splits and extra information that is useful during training.
+The facial emotion recognition model was trained using FER2013 Enhanced dataset, available on Hugging Face as \textit{abhilash88/fer2013-enhanced} \cite{fer2013_enhanced_2025}. It is based on the original FER2013 dataset, which was introduced in the Challenges in Representation Learning competition \cite{goodfellow2015challenges}. I decided to use this enhanced version because it contains extra information that were relevant during training.
 
-FER2013 Enhanced contains 35,887 grayscale face images. Each image has a resolution of 48x48 pixels and is labeled with one of seven emotion classes: angry, disgust, fear, happy, sad, surprise, and neutral. The dataset is already split into training, validation, and test sets. The split sizes are shown in Table~\ref{tab:fer2013-enhanced-splits}.
+FER2013 Enhanced contains 35,887 grayscale face images. Each image has a size of 48x48 pixels and is labeled with one of seven emotion classes: angry, disgust, fear, happy, sad, surprise, and neutral. It is split into training, validation, and test subsets, with the number of images in each split presented in Table~\ref{tab:fer2013-enhanced-splits}.
 
 \begin{table}[h]
     \centering
@@ -49,7 +49,7 @@ FER2013 Enhanced also provides a quality score for each image. This score is com
     \label{fig:fer2013-enhanced-overview}
 \end{figure}
 
-The quality score is useful because it allows experiments that compare training on all samples with training only on samples above a minimum quality threshold. The experiments use two filtering thresholds, 0.35 and 0.5. The threshold 0.35 is a permissive filter that removes the weakest images while keeping most of the dataset. The threshold 0.5 is stricter and tests whether training on cleaner images can improve the model, even if fewer samples remain. These thresholds are not treated as fixed rules for the dataset. They are used to measure the trade-off between data quantity and data quality. Table~\ref{tab:quality-threshold-retention} shows how many samples remain after each threshold.
+The quality score is useful because it allows experiments that compare training on all samples with training only on samples above a minimum quality threshold. The experiments use two filtering thresholds: 0.35 and 0.5. The threshold 0.35 is a permissive filter that removes the weakest images while keeping most of the dataset. The threshold 0.5 is stricter and tests whether training on cleaner images can improve the model. These thresholds are not treated as fixed rules for the dataset, they are used to measure the trade-off between data quantity and data quality. Table~\ref{tab:quality-threshold-retention} shows the number of samples that remain after applying each threshold.
 
 \begin{table}[h]
     \centering
@@ -99,7 +99,7 @@ The random transformations are applied only during training. Validation and test
 
 \section{Model Architecture}
 
-The classifier uses MobileNetV2 as the backbone. MobileNetV2 was designed as a lightweight convolutional neural network for mobile and resource-limited environments. Its main contribution is the use of inverted residual blocks with linear bottlenecks, combined with depthwise separable convolutions \cite{sandler2018mobilenetv2}. This design reduces the number of operations while keeping good classification performance.
+The classifier uses MobileNetV2 as the backbone. It was designed as a lightweight convolutional neural network for mobile devices and resource-limited systems. IT is built around inverted residual connections and linear bottleneck layers, while also using depthwise separable convolutions to reduce computation. \cite{sandler2018mobilenetv2}.
 
 \begin{figure}[h]
     \centering
@@ -108,7 +108,7 @@ The classifier uses MobileNetV2 as the backbone. MobileNetV2 was designed as a l
     \label{fig:mobilenetv2-architecture}
 \end{figure}
 
-MobileNetV2 was selected because the project is intended to run locally and was trained on a single GPU. The model is also used for live webcam classification, so inference speed is important. The assistant has other local components, such as speech-to-text and LLM inference, so the emotion model should not be unnecessarily large. TorchVision reports MobileNetV2 with 3.5M parameters and 0.30 GFLOPS for ImageNet inference \cite{torchvision_models}. Table~\ref{tab:backbone-comparison} shows several possible backbones with similar or commonly used sizes.
+I selected MobileNetV2 because the project is intended to run locally and was trained on a single GPU. The model is used for live webcam classification, so inference speed is important. The assistant has other local components, such as speech-to-text and LLM inference, so the emotion classification model should not be unnecessarily large. TorchVision reports MobileNetV2 with 3.5M parameters and 0.30 GFLOPS for ImageNet inference \cite{torchvision_models}. Table~\ref{tab:backbone-comparison} shows several possible backbones with similar or commonly used sizes.
 
 \begin{table}[h]
     \centering
@@ -125,7 +125,7 @@ MobileNetV2 was selected because the project is intended to run locally and was 
         ResNet18 & 69.758 & 89.078 & 11.7M & 1.81 \\
         \hline
     \end{tabular}
-    \caption{TorchVision ImageNet-1K metrics for candidate lightweight backbones.}
+    \caption{TorchVision ImageNet-1K metrics for candidate lightweight backbones.\cite{torchvision_models}}
     \label{tab:backbone-comparison}
 \end{table}
 
@@ -137,11 +137,11 @@ The training pipeline was implemented in PyTorch and all experiments were run on
 
 Training starts from the ImageNet-pretrained MobileNetV2 weights. The original classifier is replaced with a dropout layer followed by a linear layer with seven outputs, one for each emotion class. The rest of the network is reused as a visual feature extractor.
 
-The pipeline supports two training strategies. In the baseline strategy, the MobileNetV2 feature extractor is frozen and only the new classification head is trained. In the fine-tuning strategy, the model is trained in two stages. First, only the classification head is trained. Then, the last MobileNetV2 blocks are unfrozen and training continues with a smaller learning rate.
+The pipeline supports two training strategies. In the baseline strategy, the MobileNetV2 feature extractor is frozen and only the new classification head is trained. In the fine-tuning strategy, the model is trained in two stages. First, only the classification head is trained. Then, the last blocks are unfrozen and training continues with a smaller learning rate.
 
-The optimizer used in both strategies is AdamW. The loss function is cross-entropy, with optional class weights when class-weighted loss is enabled. These weights are computed from the class distribution of the training split. The scheduler monitors validation macro-F1 and reduces the learning rate when the score stops improving.
+The optimizer used in both strategies is AdamW. The loss function is cross-entropy, with optional class weights when class-weighted loss is enabled. These weights are computed from the class distribution of the training split. The scheduler observes validation macro-F1 and reduces the learning rate when the score stops improving.
 
-After each epoch, the model is evaluated on the validation split. The training loop records loss and accuracy, while validation also computes macro-F1 and per-class precision, recall, and F1-score. The best checkpoint is saved whenever validation macro-F1 improves. Early stopping is used when validation macro-F1 does not improve for several consecutive epochs.
+After each epoch, the model is evaluated on the validation split. The training loop records loss and accuracy, while validation also computes macro-F1 and per-class precision, recall, and F1-score. The best checkpoint is saved whenever validation macro-F1 improves. Early stopping is used when validation macro-F1 does not improve for multiple consecutive epochs.
 
 Automatic mixed precision is enabled to reduce memory usage. Gradient clipping is also applied before the optimizer step to keep training stable.
 
@@ -149,7 +149,7 @@ Automatic mixed precision is enabled to reduce memory usage. Gradient clipping i
 
 To determine the best performing model, training was split into multiple sections. The first goal was to choose a good strategy for class imbalance. The second goal was to check whether filtering low-quality samples improves the model. After these two decisions, I used the selected settings in hyperparameter sweeps for baseline training and fine-tuning.
 
-The main metric used for model selection was validation macro-F1. Accuracy was also recorded, but macro-F1 was more important because the dataset is imbalanced. A model can obtain a good accuracy by performing well on frequent classes, while macro-F1 gives equal importance to each class.
+The main metric used for model selection was validation macro-F1. Accuracy was also recorded, but macro-F1 was more important because the dataset is imbalanced. A model can obtain a good accuracy by performing well on frequent classes, while macro-F1 offers equal importance to each class.
 
 \subsection{Comparing Imbalance Tactics}
 
@@ -270,7 +270,7 @@ Table~\ref{tab:fer2013-prior-methods-comparison} places this result next to FER-
     \label{tab:fer2013-prior-methods-comparison}
 \end{table}
 
-Figure~\ref{fig:selected-model-statistics} gives a more detailed view of the selected model. The training graph shows the evolution of loss and accuracy for both the training and validation splits. In later epochs, the training curves keep improving while the validation curves change more slowly, which shows why the selected checkpoint should be based on validation performance rather than on the final epoch alone. The confusion matrix adds the class-level view: the model performs better on clearer expressions such as happy and surprise, while classes such as fear, sad, and angry remain harder to separate.
+Figure~\ref{fig:selected-model-statistics} gives a more detailed view of the selected model. The training graph shows the evolution of loss and accuracy for both the training and validation splits. In later epochs, the training curves keep improving while the validation curves change more slowly, which shows why the selected checkpoint should be based on validation performance rather than on the final epoch alone. The confusion matrix shows that the model performs better on clearer expressions such as happy and surprise, while classes such as fear, sad, and angry remain harder to separate.
 
 \begin{figure}[h]
     \centering
