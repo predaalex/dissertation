@@ -34,15 +34,3 @@ Another contribution is the integration of the trained emotion model into the as
 The application also includes voice interaction through a speech-to-text model. Microphone input is recorded, transcribed, and sent to the assistant as text. The final response is generated through Ollama and streamed back to the user in real time.
 
 Overall, the project combines machine learning experimentation with the implementation of a working end-to-end assistant system.
-
-\section{Structure of the Thesis}
-
-The thesis starts with an introduction to the project and to the motivation behind it. This first chapter explains why emotion-aware interaction can be useful for AI assistants, what problem the dissertation addresses, and what I wanted to achieve through the implementation.
-
-The second chapter presents the background needed to understand the project. It introduces affective computing and facial emotion recognition, then discusses public datasets used for this task. It also presents existing tools that can be used for building local AI assistants, such as speech-to-text models, local language models, and computer vision libraries.
-
-The third chapter focuses on the facial emotion recognition model. It describes the dataset used for training, the preprocessing steps, the MobileNetV2 architecture, and the training pipeline. This chapter also presents the experiments used for selecting the final model, including the comparison of imbalance handling methods, quality filtering, baseline training, and fine-tuning.
-
-The fourth chapter presents the system design and architecture of the final application. It explains how the desktop interface, FastAPI backend, session management, emotion recognition service, speech-to-text service, prompt construction, and local LLM are connected in the full assistant workflow.
-
-The final chapter summarizes the work done in the dissertation and presents the main conclusions. It also discusses the limitations of the current implementation and possible directions for improving the system in the future.

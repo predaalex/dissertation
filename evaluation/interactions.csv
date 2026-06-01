@@ -1,0 +1,51 @@
+id,query,emotion,confidence
+1,"I still do not understand this part. Can you explain it again?",Sad,0.82
+2,"Why does the application keep giving me this error?",Angry,0.76
+3,"Can you summarize what the facial emotion model does?",Neutral,0.91
+4,"I think I broke something in the backend. What should I check first?",Fear,0.69
+5,"That finally worked. What should I do next?",Happy,0.88
+6,"Can you explain FastAPI microservices in simple terms?",Surprise,0.73
+7,"The assistant response is too slow. How can I debug latency?",Angry,0.71
+8,"I am not sure if my evaluation section is convincing enough.",Sad,0.79
+9,"Please help me write a short conclusion for this experiment.",Neutral,0.86
+10,"The webcam emotion prediction changes too often. How can I stabilize it?",Fear,0.74
+11,"I am happy with the model accuracy. How should I present it?",Happy,0.84
+12,"What should I compare in an ablation study?",Neutral,0.89
+13,"Can you help me make this paragraph sound more academic?",Neutral,0.87
+14,"I keep mixing up precision and recall. Can you explain the difference?",Sad,0.78
+15,"This result is worse than I expected. What should I check?",Sad,0.81
+16,"Why did the model classify this obvious smile as neutral?",Angry,0.77
+17,"I am worried the live demo will fail. Can you give me a backup plan?",Fear,0.83
+18,"The architecture diagram looks good now. What should I describe under it?",Happy,0.86
+19,"Can you rewrite this sentence in Romanian for my thesis?",Neutral,0.92
+20,"I do not like this explanation. It feels confusing and messy.",Disgust,0.68
+21,"What is the simplest way to explain Ollama in the implementation chapter?",Neutral,0.90
+22,"My voice transcription is inaccurate. How should I debug it?",Angry,0.72
+23,"I just got the backend running. Can you suggest a smoke test?",Happy,0.85
+24,"The camera feed froze during testing. What could cause that?",Fear,0.71
+25,"Can you make this evaluation method easier to understand?",Neutral,0.88
+26,"I feel stuck on how to present the limitations of FER2013.",Sad,0.80
+27,"Why does the assistant sound too dramatic when emotion is enabled?",Disgust,0.70
+28,"Can you give me three example interactions for the evaluation section?",Neutral,0.89
+29,"The model suddenly predicted Surprise. What should I do with uncertain emotions?",Surprise,0.67
+30,"This finally makes sense. Can you help me turn it into a thesis paragraph?",Happy,0.87
+31,"I am afraid the committee will ask why I used manual evaluation.",Fear,0.82
+32,"Can you explain what soft context means in this project?",Neutral,0.93
+33,"The generated response ignored my question. How can I improve the prompt?",Angry,0.75
+34,"I am disappointed that the classifier accuracy is not higher.",Sad,0.78
+35,"Can you create a concise caption for the confusion matrix?",Neutral,0.91
+36,"The answer sounds fake and overly emotional. How do I reduce that?",Disgust,0.74
+37,"Great, the ablation table is ready. How should I interpret it?",Happy,0.84
+38,"What should I write if emotion-aware responses are not always better?",Neutral,0.88
+39,"I am surprised that neutral examples show almost no difference.",Surprise,0.72
+40,"The endpoint returns 500 and I do not know where to start.",Fear,0.79
+41,"Can you explain the session emotion voting window in simple terms?",Neutral,0.90
+42,"This bug is really annoying. Why is the history not updating?",Angry,0.78
+43,"I think the introduction is weak. Can you suggest a stronger opening?",Sad,0.76
+44,"The demo worked on the first try. What should I verify next?",Happy,0.89
+45,"Can you help me compare baseline and emotion-aware responses objectively?",Neutral,0.92
+46,"I am confused by the difference between confidence and probability distribution.",Surprise,0.69
+47,"The assistant assumed I was angry even though I only asked a question.",Disgust,0.73
+48,"How can I describe the privacy implications of webcam-based emotion detection?",Fear,0.77
+49,"Please turn these bullet points into a coherent paragraph.",Neutral,0.91
+50,"I am relieved that the tests passed. Can you help me write the verification note?",Happy,0.86

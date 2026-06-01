@@ -9,6 +9,7 @@ playground.ipynb
 /facial_classifier/models
 /facial_classifier/datasets
 /recordings
+/evaluation/results/
 
 # Python cache files
 __pycache__/

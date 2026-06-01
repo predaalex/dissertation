@@ -12,9 +12,7 @@ This distinction is important because facial emotion recognition is a difficult 
 
 \section{Public Datasets and Benchmarks for Facial Emotion Recognition}
 
-Facial emotion recognition models are usually trained and compared on public datasets. One of the most used benchmarks is FER2013, introduced in the Challenges in Representation Learning competition \cite{goodfellow2015challenges}. FER2013 contains low-resolution facial images labeled with seven emotion classes: angry, disgust, fear, happy, sad, surprise, and neutral.
-
-FER2013 is public and widely used, which makes it easier to compare the results with other projects. However, the dataset also comes with some limitations. The images have low resolution, some labels can be noisy, and the emotion classes are not perfectly balanced. These aspects can affect both the training process and the final evaluation.
+Facial emotion recognition models are usually trained and compared on public datasets. One of the most used benchmarks is FER2013, introduced in the Challenges in Representation Learning competition \cite{goodfellow2015challenges}. FER2013 contains low-resolution facial images labeled with seven emotion classes: angry, disgust, fear, happy, sad, surprise, and neutral. FER2013 is public and widely used, which makes it easier to compare the results with other projects. However, the dataset also comes with some limitations. The images have low resolution, some labels can be noisy, and the emotion classes are not perfectly balanced. These aspects can affect both the training process and the final evaluation.
 
 Other datasets also exist for facial emotion recognition. AffectNet is a larger dataset that contains both categorical emotion labels and valence-arousal annotations \cite{mollahosseini2019affectnet}. Other public examples are CK+, JAFFE, RAF-DB, and FERPlus. These datasets differ in size, image quality, annotation method, and acquisition conditions.
 
@@ -28,4 +26,4 @@ For speech-to-text, one of the most widely used open-source options is Whisper, 
 
 For response generation, large language model families provide versions that can be executed locally. Examples include Llama, Gemma, Mistral, Qwen, and Phi \cite{touvron2023llama2,gemma2024,jiang2023mistral}. Tools such as Ollama simplify local deployment by downloading models, exposing them through a local API, and handling inference on the user's machine.
 
-PyTorch and torchivision are the most used frameworks for training deep neural networks for computer vision tasks. In this combination, OpenCV is a great additional framework that helps with webcam access, face detection, frame processing, and image manipulation with high quality and performance. These tools represents the basic requirements for applications that combine vision, speech and language on the same device.
+PyTorch and torchivision are the most used frameworks for training deep neural networks for computer vision tasks. In this combination, OpenCV is a great additional framework that helps with webcam access, face detection, frame processing, and image manipulation with high quality and performance.

@@ -69,11 +69,9 @@ The quality score is useful because it allows experiments that compare training 
 
 \section{Data Loading, Preprocessing, and Augmentation}
 
-The dataset is loaded in the training script using the Hugging Face \textit{datasets} library. The default dataset name is \textit{abhilash88/fer2013-enhanced}, and the files are cached locally. The same loading function is used for the training, validation, and test splits.
+The dataset is loaded in the training script using the Hugging Face \textit{datasets} library. The default dataset name is \textit{abhilash88/fer2013-enhanced}.
 
-Before an image is passed to the model, it is converted to RGB. The dataset images are grayscale, while the pretrained MobileNetV2 backbone expects three input channels. The label is read from the \textit{emotion} field and used as the target class.
-
-The training script can also limit the samples used in an experiment. A dataset fraction can be selected for shorter runs, and a minimum quality score can be applied to remove low-quality samples. These options make it possible to compare different training settings without modifying the dataset files.
+Before an image is passed to the model, it is converted to RGB. The dataset images are grayscale, while the pretrained MobileNetV2 backbone expects three input channels. The label is read from the \textit{emotion} field and used as the target class. The training script can also limit the samples used in an experiment. A dataset fraction can be selected for shorter runs, and a minimum quality score can be applied to remove low-quality samples. These options make it possible to compare different training settings without modifying the dataset files.
 
 Different image transformations are used for training and evaluation, as shown in Table~\ref{tab:image-transforms}. The training split uses random crop, horizontal flip, and rotation. The validation and test splits use deterministic transformations, so reported metrics are not affected by random input changes.
 
@@ -141,9 +139,7 @@ The pipeline supports two training strategies. In the baseline strategy, the Mob
 
 The optimizer used in both strategies is AdamW. The loss function is cross-entropy, with optional class weights when class-weighted loss is enabled. These weights are computed from the class distribution of the training split. The scheduler observes validation macro-F1 and reduces the learning rate when the score stops improving.
 
-After each epoch, the model is evaluated on the validation split. The training loop records loss and accuracy, while validation also computes macro-F1 and per-class precision, recall, and F1-score. The best checkpoint is saved whenever validation macro-F1 improves. Early stopping is used when validation macro-F1 does not improve for multiple consecutive epochs.
-
-Automatic mixed precision is enabled to reduce memory usage. Gradient clipping is also applied before the optimizer step to keep training stable.
+After each epoch, the model is evaluated on the validation split. The training loop records loss and accuracy, while validation also computes macro-F1 and per-class precision, recall, and F1-score. The best checkpoint is saved whenever validation macro-F1 improves. Early stopping is used when validation macro-F1 does not improve for multiple consecutive epochs. Automatic mixed precision is enabled to reduce memory usage. Gradient clipping is also applied before the optimizer step to keep training stable.
 
 \section{Experimental Strategy, Evaluation, and Model Selection}
 
@@ -270,7 +266,7 @@ Table~\ref{tab:fer2013-prior-methods-comparison} places this result next to FER-
     \label{tab:fer2013-prior-methods-comparison}
 \end{table}
 
-Figure~\ref{fig:selected-model-statistics} gives a more detailed view of the selected model. The training graph shows the evolution of loss and accuracy for both the training and validation splits. In later epochs, the training curves keep improving while the validation curves change more slowly, which shows why the selected checkpoint should be based on validation performance rather than on the final epoch alone. The confusion matrix shows that the model performs better on clearer expressions such as happy and surprise, while classes such as fear, sad, and angry remain harder to separate.
+Figure~\ref{fig:selected-model-statistics} gives a more detailed view of the selected model. The training graph shows the evolution of loss for both the training and validation splits. In later epochs, the training curves keep improving while the validation curves change more slowly, which shows why the selected checkpoint should be based on validation performance rather than on the final epoch alone. The confusion matrix shows that the model performs better on clearer expressions such as happy and surprise, while classes such as fear, sad, and angry remain harder to separate.
 
 \begin{figure}[h]
     \centering
