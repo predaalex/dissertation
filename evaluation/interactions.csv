@@ -49,3 +49,53 @@ id,query,emotion,confidence
 48,"How can I describe the privacy implications of webcam-based emotion detection?",Fear,0.77
 49,"Please turn these bullet points into a coherent paragraph.",Neutral,0.91
 50,"I am relieved that the tests passed. Can you help me write the verification note?",Happy,0.86
+51,"Can you help me explain why the assistant uses local inference instead of a cloud API?",Neutral,0.90
+52,"I am frustrated that the same endpoint works sometimes and fails other times.",Angry,0.79
+53,"This part of the methodology feels incomplete. What am I missing?",Sad,0.77
+54,"I am nervous about presenting the live webcam component. How should I introduce it?",Fear,0.81
+55,"The FER model finally loads correctly. What should I test next?",Happy,0.87
+56,"The response changed a lot just because the emotion was Surprise. Is that okay?",Surprise,0.70
+57,"The answer sounds patronizing. How can I make the prompt more subtle?",Disgust,0.72
+58,"Can you explain the difference between an endpoint and a service layer?",Neutral,0.89
+59,"The model predicted Angry but the user text is neutral. How should the assistant react?",Angry,0.74
+60,"I feel like my results section is not strong enough. Can you help structure it?",Sad,0.80
+61,"What should I say about false positives in facial emotion recognition?",Neutral,0.91
+62,"I am scared the camera permissions will break during the presentation.",Fear,0.78
+63,"Great, the statistics script works. Can you help me phrase the findings?",Happy,0.88
+64,"Why is the assistant repeating the same explanation again and again?",Angry,0.76
+65,"I did not expect the emotion-aware answer to be worse. How should I interpret that?",Surprise,0.71
+66,"This generated paragraph feels artificial and I do not like it.",Disgust,0.69
+67,"Can you turn this implementation detail into a concise academic sentence?",Neutral,0.92
+68,"I am discouraged because the classifier struggles with Disgust examples.",Sad,0.75
+69,"What is the cleanest way to describe the session history mechanism?",Neutral,0.90
+70,"I am excited that the final workflow is almost complete. What should I polish?",Happy,0.86
+71,"The LLM ignored the soft-context instruction. How can I reduce that behavior?",Angry,0.73
+72,"I am worried that using the same LLM as evaluator will be criticized.",Fear,0.82
+73,"Why did the assistant mention my emotion explicitly when I did not ask?",Disgust,0.75
+74,"Can you make this limitation sound honest but not too negative?",Neutral,0.89
+75,"I am surprised that the neutral cases show almost identical responses.",Surprise,0.73
+76,"This explanation is too technical. Can you simplify it for a committee member?",Neutral,0.91
+77,"I feel lost between the architecture chapter and the evaluation chapter.",Sad,0.79
+78,"The server logs are full of warnings. Which ones should I investigate first?",Fear,0.76
+79,"Nice, the assistant response is much more empathetic now. How do I describe that?",Happy,0.84
+80,"This output is annoying because it changes formatting every time.",Angry,0.77
+81,"Can you help me define the baseline condition precisely?",Neutral,0.93
+82,"The emotion-aware response assumes too much. How should I penalize that?",Disgust,0.74
+83,"I am confused why lower overreaction risk is better while other scores are higher-is-better.",Surprise,0.70
+84,"I am afraid the evaluation will look subjective. How can I justify the rubric?",Fear,0.80
+85,"The current explanation finally sounds clear. Can you make it more formal?",Happy,0.85
+86,"What should I include in the appendix for reproducibility?",Neutral,0.90
+87,"I feel disappointed by the number of ties in the comparison.",Sad,0.76
+88,"Why does the response become longer when emotion context is added?",Neutral,0.88
+89,"This answer completely missed the point. What prompt change can fix it?",Angry,0.78
+90,"I did not expect Fear to improve supportiveness so much. How should I report it?",Surprise,0.72
+91,"The assistant sounds too sentimental. How do I keep it professional?",Disgust,0.71
+92,"Can you help me write a short paragraph about ethical constraints?",Neutral,0.92
+93,"I am anxious that the thesis scope looks too broad. How should I narrow it?",Fear,0.83
+94,"The final demo scenario works well. Can you write a concise walkthrough?",Happy,0.87
+95,"My explanation of confidence threshold is unclear. Can you rewrite it?",Sad,0.74
+96,"Why does the FER prediction need a voting window instead of using the latest frame?",Neutral,0.91
+97,"This comparison table looks ugly. How can I make it cleaner?",Disgust,0.70
+98,"I am annoyed that the model gives different scores for similar answers.",Angry,0.75
+99,"I am surprised by how often the baseline is still good enough.",Surprise,0.72
+100,"Can you help me summarize the main contribution of the project in two sentences?",Neutral,0.93

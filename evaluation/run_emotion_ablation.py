@@ -13,7 +13,7 @@ from typing import Any
 
 MODEL = "gemma4:e4b"
 OLLAMA_BASE_URL = "http://localhost:11434"
-MAX_ATTEMPTS = 3
+MAX_ATTEMPTS = 10
 
 METRICS = [
     ("helpfulness", False),
@@ -180,7 +180,7 @@ def gemma_raw_prompt(prompt: str) -> str:
 
 def clean_model_output(text: str) -> str:
     text = re.sub(r"<pad>|<bos>|<eos>|<unused\d+>", "", text)
-    text = re.sub(r"<start_of_turn>|<end_of_turn>", "", text)
+    text = re.sub(r"</?start_of_turn>|<end_of_turn>", "", text)
     text = re.sub(r"<\|[^>]+?\|>", "", text)
     text = re.sub(r"<[^>]{1,60}>", "", text)
     return text.strip()
@@ -196,7 +196,10 @@ def generate_text(prompt: str) -> str:
     cleaned = clean_model_output(raw_text)
     if is_usable(cleaned):
         return cleaned
-    raise RuntimeError(f"{MODEL} did not return usable text: {raw_text[:120]!r}")
+    raise RuntimeError(
+        f"{MODEL} did not return usable text after cleaning. "
+        f"raw={raw_text[:120]!r}, cleaned={cleaned[:120]!r}"
+    )
 
 
 def generate_text_with_retries(
