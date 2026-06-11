@@ -1,36 +1,17 @@
 \chapter{Introduction}
 
-\section{Motivation}
-
-In the current era of AI assistants, most human-computer interactions are based on text input, voice input, or text-to-speech. When people communicate with each other, they also use non-verbal signals, such as facial expressions, tone of voice, hesitation, and body language. A desktop assistant that can observe the apparent facial emotion can use this extra context to respond in a more natural way.
-
-These interactions often contain sensitive information, such as personal messages, voice recordings, and webcam images. For this reason, running the main components locally is valuable, because it gives the user more control over their data.
-
-In my project, I explore whether facial emotion recognition can be useful in the interaction between humans and AI assistants, not only as a standalone image classification task.
+In the current era of AI assistants, most human-computer interactions are based on text input, voice input, or text-to-speech. When people communicate with each other, they also use non-verbal signals, such as facial expressions, tone of voice, hesitation, and body language. A desktop assistant that can observe the apparent facial emotion can use this extra context to respond in a more natural way.These interactions often contain sensitive information, such as personal messages, voice recordings, and webcam images. For this reason, running the main components locally is valuable, because it gives the user more control over their data. In my project, I explore whether facial emotion recognition can be useful in the interaction between humans and AI assistants, not only as a standalone image classification task.
 
 \section{Problem Statement}
 
-Standard interaction between users and AI assistants is usually based only on explicit input, such as written or spoken text. Because of this, the assistant is not aware of the user's emotional state.
+Standard interaction between users and AI assistants is usually based only on explicit input, such as written or spoken text. Because of this, the assistant is not aware of the user's emotional state. Although current classification models have evolved from classical CNN architectures to deeper models and architectures that may include attention mechanisms, facial emotion recognition remains a difficult task. In real-world webcam conditions, predictions can be affected by lighting, camera quality, face position, occlusions, and the fact that facial expressions do not always reflect the user's real emotion.
 
-Although current classification models have evolved from classical CNN architectures to deeper models and architectures that may include attention mechanisms, facial emotion recognition remains a difficult task. In real-world webcam conditions, predictions can be affected by lighting, camera quality, face position, occlusions, and the fact that facial expressions do not always reflect the user's real emotion.
+For this reason, the detected facial emotion should not be treated as an absolute truth. A separate challenge is to use this prediction only as additional context in the interaction between the user and the assistant. The main challenge of my project is to integrate several AI components into one local architecture that can run on a regular user's device: webcam-based emotion recognition, speech-to-text, LLM response generation, session management, and real-time response streaming.
 
-For this reason, the detected facial emotion should not be treated as an absolute truth. A separate challenge is to use this prediction only as additional context in the interaction between the user and the assistant.
+\section{Contributions}
 
-The main challenge of my project is to integrate several AI components into one local architecture that can run on a regular user's device: webcam-based emotion recognition, speech-to-text, LLM response generation, session management, and real-time response streaming.
+This dissertation presents the design, implementation, and evaluation of an emotion-aware desktop AI assistant that supports both text and voice interaction. The system uses the user's apparent facial emotion as additional context for a locally running LLM. I developed a modular architecture based on a FastAPI backend. The backend exposes separate endpoints for session management, emotion prediction, speech transcription, and assistant response generation. This separation makes the system easier to test, extend, and connect to different user interfaces.
 
+The main contribution of the project is the facial emotion recognition component. I implemented a PyTorch training pipeline based on MobileNetV2 and trained the model on a public facial expression dataset. The pipeline contains the full training process, from preparing the images and handling class imbalance, to saving the trained model and evaluating its performance. The experimental part of the dissertation focuses on finding the best training setup for the emotion recognition model. I started by testing how class imbalance should be handled, then checked how image quality filtering affects the results. After that, I used the findings to tune the model parameters, compare baseline and fine-tuned versions, and train the final model on the full dataset.
 
-\section{Objectives and Personal Contributions}
-
-The main goal of this dissertation is to design, implement, and evaluate an emotion-aware desktop AI assistant that supports both text and voice interaction. The system uses the user's apparent facial emotion as additional context for a locally running LLM.
-
-To achieve this, I developed a modular architecture based on a FastAPI backend. The backend exposes separate endpoints for session management, emotion prediction, speech transcription, and assistant response generation. This separation makes the system easier to test, extend, and connect to different user interfaces.
-
-The main contribution of the project is the facial emotion recognition component. I implemented a PyTorch training pipeline based on MobileNetV2 and trained the model on a public facial expression dataset. The pipeline contains the full training process, from preparing the images and handling class imbalance, to saving the trained model and evaluating its performance.
-
-The experimental part of the dissertation focuses on finding the best training setup for the emotion recognition model. I started by testing how class imbalance should be handled, then checked how image quality filtering affects the results. After that, I used the findings to tune the model parameters, compare baseline and fine-tuned versions, and train the final model on the full dataset.
-
-Another contribution is the integration of the trained emotion model into the assistant workflow. The webcam feed is processed periodically, the predicted emotion is stored in the current session, and this emotional context is inserted into the prompt sent to the local LLM. The system treats the predicted emotion as a soft signal, not as a certain representation of the user's real emotional state.
-
-The application also includes voice interaction through a speech-to-text model. Microphone input is recorded, transcribed, and sent to the assistant as text. The final response is generated through Ollama and streamed back to the user in real time.
-
-Overall, the project combines machine learning experimentation with the implementation of a working end-to-end assistant system.
+Another contribution is the integration of the trained emotion model into the assistant workflow. The webcam feed is processed periodically, the predicted emotion is stored in the current session, and this emotional context is inserted into the prompt sent to the local LLM. The system treats the predicted emotion as a soft signal, not as a certain representation of the user's real emotional state.The application also includes voice interaction through a speech-to-text model. Microphone input is recorded, transcribed, and sent to the assistant as text. The final response is generated through Ollama and streamed back to the user in real time. Overall, the project combines machine learning experimentation with the implementation of a working end-to-end assistant system.
