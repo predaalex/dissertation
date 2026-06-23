@@ -18,5 +18,6 @@ class Settings:
     project_root: Path = Path(__file__).resolve().parent.parent
     emotion_model_path: str = os.getenv(
         "EMOTION_MODEL_PATH",
-        str(Path(__file__).resolve().parent.parent / "facial_classifier" / "models" / "20260510_084521_finetune_finetune_weighted_sampler_c7_bs64_lr5e-04_frac1.00_head100_ft100_ftlr5e-04_uf12_awcuti3o_bs64_lr5e-04_frac1.00_f10p6751.pt"),
+        # str(Path(__file__).resolve().parent.parent / "facial_classifier" / "models" / "20260510_084521_finetune_finetune_weighted_sampler_c7_bs64_lr5e-04_frac1.00_head100_ft100_ftlr5e-04_uf12_awcuti3o_bs64_lr5e-04_frac1.00_f10p6751.pt"),
+        r"C:\Users\allex\Desktop\git_repos\dissertation\facial_classifier\models\personal_finetune\20260623_155815_personal_finetune_finetune_f10p9582.pt",
     )
