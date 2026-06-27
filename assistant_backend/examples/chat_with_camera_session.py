@@ -253,6 +253,11 @@ def main():
         help="Do not render completed assistant replies with glow; print raw streamed text instead.",
     )
     parser.add_argument(
+        "--disable-emotion-context",
+        action="store_true",
+        help="Do not inject cached facial emotion into assistant prompts.",
+    )
+    parser.add_argument(
         "--disable-face-cropping",
         action="store_true",
         help="Disable local and backend face cropping in the camera poller.",
@@ -409,7 +414,7 @@ def main():
             metadata, done_payload = stream_assistant_reply(
                 session_id=session_id,
                 prompt=user_text,
-                use_cached_emotion=True,
+                use_cached_emotion=not args.disable_emotion_context,
                 render_markdown=not args.no_markdown_render,
             )
 
